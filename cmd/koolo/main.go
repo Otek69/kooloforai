@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	_ "net/http/pprof"
+	"os"
 	"runtime/debug"
 
 	sloggger "github.com/hectorgimenez/koolo/cmd/koolo/log"
@@ -23,6 +24,11 @@ import (
 )
 
 func main() {
+	debugMode := hasFlag("--debug") || os.Getenv("KOOLO_DEBUG") == "1"
+	if debugMode {
+		debug.SetTraceback("all") // full goroutine dump on a crash
+	}
+
 	err := config.Load()
 	if err != nil {
 		utils.ShowDialog("Error loading configuration", err.Error())
@@ -30,6 +36,10 @@ func main() {
 		return
 	}
 
+	if debugMode {
+		config.Koolo.Debug.Log = true
+		config.Koolo.Debug.Screenshots = true
+	}
 	logger, err := sloggger.NewLogger(config.Koolo.Debug.Log, config.Koolo.LogSaveDirectory, "")
 	if err != nil {
 		log.Fatalf("Error starting logger: %s", err.Error())
@@ -41,6 +51,9 @@ func main() {
 			err = fmt.Errorf("fatal error detected, Koolo will close with the following error: %v\n Stacktrace: %s", r, debug.Stack())
 			logger.Error(err.Error())
 			sloggger.FlushLog()
+			if path := writeCrashReport(r, debug.Stack()); path != "" {
+				err = fmt.Errorf("%w\n\nCrash report saved to %s. Run \"Koolo Doctor\" from the Start menu to make a debug bundle", err, path)
+			}
 			utils.ShowDialog("Koolo error :(", fmt.Sprintf("Koolo will close due to an expected error, please check the latest log file for more info!\n %s", err.Error()))
 		}
 	}()
