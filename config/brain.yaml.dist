@@ -1,0 +1,49 @@
+# Claude "brain" for Koolo: plans runs, tunes survival, learns from deaths and narrates for your stream.
+# Koolo still does all the real-time playing. Set enabled: false to run plain Koolo.
+enabled: true
+
+# "anthropic" = Claude API (best decisions, pay per use)
+# "local"     = free, runs on your own GPU via Ollama / LM Studio (set localURL; models become e.g. qwen2.5vl:7b)
+provider: anthropic
+localURL: http://localhost:11434/v1
+
+# Get a key at https://platform.claude.com (separate from a Claude Pro subscription; billed per use).
+# Leave empty to use the ANTHROPIC_API_KEY environment variable instead (safer).
+apiKey: ""
+
+# With provider: local, set both models to your local model name, e.g. qwen2.5vl:7b
+# Frequent, cheap reactions (items, finished runs).
+fastModel: claude-haiku-5-5
+# Big decisions: game plans, survival tuning, death analysis.
+smartModel: claude-opus-5-5
+
+# The AI stops making calls once this much (USD) has been spent since Koolo started. The bot keeps playing.
+maxSessionUSD: 5
+
+# 0 = the AI may pick any number of your enabled runs per game.
+maxRunsPerGame: 0
+
+# React to every item that gets stashed.
+commentOnItems: true
+
+# Give the AI the speedrun route knowledge (MrLlamaSC's tutorials + speedrun.com) for planning and the assistant.
+usePlaybook: true
+
+# Let the AI change potion and chicken thresholds between games (always clamped to safe ranges).
+tuneSurvival: true
+
+# The voice of your channel's AI.
+persona: >-
+  You are an AI playing Diablo II: Resurrected live on a YouTube channel.
+  Be entertaining, confident and a bit dramatic, but honest about mistakes.
+
+# OBS: add a "Text (GDI+)" source, tick "Read from file" and pick this file.
+overlayFile: brain/overlay.txt
+overlayLines: 6
+
+# Every thought with timestamp and running cost, for editing your videos.
+logFile: brain/thoughts.jsonl
+
+# Run statistics, lessons learned and the AI's long-term goal, kept between sessions.
+# Delete this file to give the AI a fresh start.
+memoryFile: brain/memory.json
