@@ -40,3 +40,5 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/crypto v0.40.0 // indirect
 )
+
+replace github.com/hectorgimenez/d2go => ./third_party/d2go

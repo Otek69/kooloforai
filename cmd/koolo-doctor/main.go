@@ -340,17 +340,56 @@ func checkGame() {
 		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
 	}
 
-	defer func() {
-		if r := recover(); r != nil {
-			line(fail, "Memory", fmt.Sprintf("reading the game crashed (%v): the memory reader probably doesn't match this D2R patch", r))
-		}
-	}()
 	proc, err := memory.NewProcess()
 	if err != nil {
 		line(fail, "Memory", "can't open the D2R process: "+err.Error()+" (run as administrator)")
 		return
 	}
 	defer proc.Close()
+	base, size := proc.ModuleInfo()
+	line(info, "Memory", fmt.Sprintf("D2R module at 0x%X, %d MB", base, size>>20))
+
+	// Step 1: can we read the game's code, and do the address patterns still match this D2R build?
+	checks, err := safeDiagnose(proc)
+	if err != nil {
+		line(fail, "Memory", err.Error())
+		return
+	}
+	bad, total := proc.MemoryHealth()
+	if bad > 0 {
+		line(info, "Memory", fmt.Sprintf("%d of %d pages unreadable (skipped; normal on newer D2R builds)", bad, total))
+	}
+	var missing []string
+	essentialMissing := false
+	for i, c := range checks {
+		if !c.Found {
+			missing = append(missing, c.Name)
+			if i < 5 {
+				essentialMissing = true
+			}
+		}
+	}
+	switch {
+	case len(missing) == 0:
+		line(ok, "Patterns", fmt.Sprintf("all %d address patterns found in this D2R build", len(checks)))
+	case essentialMissing:
+		line(fail, "Patterns", fmt.Sprintf("essential patterns missing: %s. This D2R patch is newer than the memory reader: d2go needs an update", strings.Join(missing, ", ")))
+		return
+	default:
+		line(warn, "Patterns", "some optional patterns missing: "+strings.Join(missing, ", ")+" (related features may not work)")
+	}
+
+	// Step 2: read the live game.
+	defer func() {
+		if r := recover(); r != nil {
+			line(fail, "Memory", fmt.Sprintf("reading the game crashed: %v", r))
+			for _, l := range strings.Split(string(debug.Stack()), "\n") {
+				if strings.Contains(l, "d2go") || strings.Contains(l, "koolo") {
+					line(info, "", strings.TrimSpace(l))
+				}
+			}
+		}
+	}()
 	gr := memory.NewGameReader(proc)
 	if !gr.InGame() {
 		line(warn, "Memory", "D2R found, but you're not in a game. Enter a game (offline character) and run again to test fully")
@@ -371,6 +410,16 @@ func checkGame() {
 	} else {
 		line(fail, "Memory", "game data looks wrong: the memory reader likely needs an update for this D2R patch (newer d2go)")
 	}
+}
+
+// safeDiagnose runs the pattern scan, turning a crash into an error with the location.
+func safeDiagnose(proc *memory.Process) (checks []memory.PatternCheck, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("scanning the game's memory crashed: %v\n%s", r, debug.Stack())
+		}
+	}()
+	return proc.DiagnosePatterns()
 }
 
 func checkLogs(dir string) {
