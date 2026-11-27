@@ -404,7 +404,8 @@ func checkGame() {
 
 var procGetWindowTextW = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextW")
 
-// checkWindow finds the D2R window of the given process and checks its size and whether it's online.
+// checkWindow finds the D2R window of the given process and checks its size.
+// (The title shows the Battle.net region the launcher is logged into, even for offline characters.)
 func checkWindow(pid uint32) {
 	var found windows.HWND
 	cb := syscall.NewCallback(func(h windows.HWND, _ uintptr) uintptr {
@@ -433,10 +434,6 @@ func checkWindow(pid uint32) {
 		line(ok, "Window", fmt.Sprintf("%dx%d", w, h))
 	} else {
 		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
-	}
-	if strings.Contains(strings.ToLower(title), "battle.net") {
-		line(fail, "Online", "this is a Battle.net (online) session. Koolo AI is for OFFLINE characters only: "+
-			"bots break Blizzard's rules and can get your account banned. Switch to the Offline tab in D2R")
 	}
 }
 
