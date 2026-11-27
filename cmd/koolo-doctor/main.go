@@ -119,12 +119,16 @@ func main() {
 			absZip, _ := filepath.Abs(zipPath)
 			fmt.Println("Debug bundle saved to", absZip)
 			fmt.Println("It contains logs, crash reports and configs with API keys, tokens and passwords removed.")
-			_ = exec.Command("explorer", "/select,", absZip).Start()
+			if !hasArg("--no-wait") {
+				_ = exec.Command("explorer", "/select,", absZip).Start()
+			}
 		}
 	}
 
-	fmt.Print("\nPress Enter to close...")
-	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+	if !hasArg("--no-wait") {
+		fmt.Print("\nPress Enter to close...")
+		_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+	}
 }
 
 // ---------------------------------------------------------------------------

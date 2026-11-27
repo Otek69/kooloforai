@@ -56,3 +56,19 @@ The crash dialog shows where the file is. Koolo Doctor flags crash reports and i
 | Doctor: Claude API key rejected | Wrong or expired key, or no credit. Check platform.claude.com |
 | Doctor: no model server | Start Ollama or LM Studio, or switch `provider` back to `anthropic` |
 | Pickit rules error | A typo in a `.nip` file. The doctor prints which file and line |
+
+## 4. Let Claude Code fix it (MCP)
+
+While Koolo runs, it serves an **MCP server** at `http://localhost:8087/mcp`. It accepts connections only from your own PC, not from your network. Through it, Claude Code can run Koolo Doctor and read logs, crash reports, status, live game state and screenshots. It can also start, stop and pause characters and apply validated settings changes.
+
+**Setup (once):**
+1. Install [Go](https://go.dev/dl/) and [Git](https://git-scm.com/), and install Claude Code. It's included in Claude Pro.
+2. Get the source: `git clone https://github.com/Otek69/kooloforai`
+3. Start Koolo AI. Then, in the `kooloforai` folder, run `claude`. Claude Code finds the `koolo` MCP server from `.mcp.json` and asks you to approve it once.
+4. Optional: run that terminal as administrator, so restarting Koolo doesn't show a UAC prompt every time.
+
+**Use:**
+- `/fix-koolo the bot keeps dying in the Pit`: Claude diagnoses with the tools, fixes the settings or code, rebuilds and restarts Koolo (`scripts/dev-rebuild.ps1`), then checks the fix worked in the logs and stats.
+- `/improve-koolo leveling speed`: Claude looks at deaths, chickens, errors and the AI's run record, makes one change, and compares the numbers before and after.
+
+Code changes are committed on a branch, so you can review them and undo them with git. Nothing is pushed unless you ask.

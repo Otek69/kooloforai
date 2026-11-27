@@ -417,6 +417,7 @@ func (s *HttpServer) Listen(port int) error {
 	http.HandleFunc("/debug", s.debugHandler)
 	http.HandleFunc("/debug-data", s.debugData)
 	http.HandleFunc("/drops", s.drops)
+	http.Handle("/mcp", s.mcpHandler()) // MCP server for Claude Code on this PC (loopback only)
 	http.HandleFunc("/assistant", s.assistantPage)
 	http.HandleFunc("/api/assistant", s.assistantAsk)
 	http.HandleFunc("/api/assistant/apply", s.assistantApply)
