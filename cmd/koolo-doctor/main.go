@@ -19,7 +19,9 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/anthropics/anthropic-sdk-go/v2"
 	"github.com/anthropics/anthropic-sdk-go/v2/option"
@@ -326,26 +328,14 @@ func checkBrain() {
 
 func checkGame() {
 	section("Game (Diablo II: Resurrected)")
-	hwnd := win.FindWindow(nil, windows.StringToUTF16Ptr("Diablo II: Resurrected"))
-	if hwnd == 0 {
-		line(warn, "Window", "D2R is not running. Start it (windowed) and run Koolo Doctor again to test memory reading")
-		return
-	}
-	var rc win.RECT
-	win.GetClientRect(hwnd, &rc)
-	w, h := rc.Right-rc.Left, rc.Bottom-rc.Top
-	if (w == 1280 && h == 720) || (w == 1920 && h == 1080) {
-		line(ok, "Window", fmt.Sprintf("%dx%d", w, h))
-	} else {
-		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
-	}
-
+	// Find D2R by its process, not by window title: Koolo renames the game window ("D2R - [pid] - name - ...").
 	proc, err := memory.NewProcess()
 	if err != nil {
-		line(fail, "Memory", "can't open the D2R process: "+err.Error()+" (run as administrator)")
+		line(warn, "Game", "D2R is not running (or can't be opened as administrator). Start it windowed, enter a game, and run Koolo Doctor again")
 		return
 	}
 	defer proc.Close()
+	checkWindow(proc.GetPID())
 	base, size := proc.ModuleInfo()
 	line(info, "Memory", fmt.Sprintf("D2R module at 0x%X, %d MB", base, size>>20))
 
@@ -409,6 +399,44 @@ func checkGame() {
 		line(ok, "Memory", "game data looks correct: Koolo can read this D2R version")
 	} else {
 		line(fail, "Memory", "game data looks wrong: the memory reader likely needs an update for this D2R patch (newer d2go)")
+	}
+}
+
+var procGetWindowTextW = windows.NewLazySystemDLL("user32.dll").NewProc("GetWindowTextW")
+
+// checkWindow finds the D2R window of the given process and checks its size and whether it's online.
+func checkWindow(pid uint32) {
+	var found windows.HWND
+	cb := syscall.NewCallback(func(h windows.HWND, _ uintptr) uintptr {
+		var wpid uint32
+		_, _ = windows.GetWindowThreadProcessId(h, &wpid)
+		if wpid == pid && windows.IsWindowVisible(h) {
+			found = h
+			return 0 // stop
+		}
+		return 1
+	})
+	_ = windows.EnumWindows(cb, nil)
+	if found == 0 {
+		line(warn, "Window", "D2R process found but no visible window")
+		return
+	}
+	buf := make([]uint16, 256)
+	n, _, _ := procGetWindowTextW.Call(uintptr(found), uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)))
+	title := windows.UTF16ToString(buf[:n])
+	line(info, "Window", fmt.Sprintf("%q", title))
+
+	var rc win.RECT
+	win.GetClientRect(win.HWND(found), &rc)
+	w, h := rc.Right-rc.Left, rc.Bottom-rc.Top
+	if (w == 1280 && h == 720) || (w == 1920 && h == 1080) {
+		line(ok, "Window", fmt.Sprintf("%dx%d", w, h))
+	} else {
+		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
+	}
+	if strings.Contains(strings.ToLower(title), "battle.net") {
+		line(fail, "Online", "this is a Battle.net (online) session. Koolo AI is for OFFLINE characters only: "+
+			"bots break Blizzard's rules and can get your account banned. Switch to the Offline tab in D2R")
 	}
 }
 
