@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Koolo AI Extras</title>
+<style>
+  :root { --bg:#0f0d0c; --panel:#1a1613; --line:#3a3027; --gold:#d9b25f; --text:#efe6d6; --muted:#a59a88;
+          --ok:#4ade80; --warn:#f59e0b; --bad:#ef4444; --think:#a78bfa; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui, Segoe UI, sans-serif; }
+  .wrap { max-width:1200px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { color:var(--gold); font-size:26px; margin:0 0 4px; }
+  h2 { color:var(--gold); font-size:15px; letter-spacing:.12em; text-transform:uppercase; margin:0 0 10px; }
+  .sub { color:var(--muted); margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:16px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  td, th { text-align:left; padding:6px 4px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:600; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; font-weight:600; }
+  .running { background:#14532d; color:var(--ok); } .restarting { background:#78350f; color:var(--warn); }
+  .disabled, .stopped { background:#7f1d1d; color:#fecaca; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:10px 0; }
+  .stat { background:#120f0d; border:1px solid var(--line); border-radius:8px; padding:8px; }
+  .stat b { display:block; font-size:22px; color:var(--gold); font-family:Consolas, monospace; }
+  .stat span { font-size:11px; color:var(--muted); letter-spacing:.08em; text-transform:uppercase; }
+  .muted { color:var(--muted); font-size:13px; }
+  .alert { padding:6px 0; border-bottom:1px solid var(--line); white-space:pre-wrap; font-size:14px; }
+  svg { width:100%; height:120px; }
+  /* OBS banner mode */
+  body.banner { background:transparent; }
+  .banner-box { display:none; }
+  body.banner .wrap { display:none; }
+  body.banner .banner-box { display:flex; gap:28px; align-items:center; margin:20px; padding:14px 26px;
+    background:rgba(15,13,12,.9); border:2px solid var(--gold); border-radius:14px; width:max-content; font-size:26px; }
+  .banner-box .day { font-weight:800; color:var(--gold); } .banner-box .k { color:var(--muted); font-size:16px; display:block; }
+</style>
+</head>
+<body>
+<div class="banner-box" id="banner"></div>
+<div class="wrap">
+  <h1 id="title">Koolo AI Extras</h1>
+  <div class="sub" id="sub">Loading…</div>
+  <div class="grid">
+    <div class="panel" id="chars"><h2>Characters</h2><div class="muted">No games recorded yet.</div></div>
+    <div class="panel"><h2>Extras (modules)</h2><table id="modules"></table>
+      <p class="muted">A module that crashes is restarted; after 3 crashes in 10 minutes it is switched off. Koolo keeps running either way.</p></div>
+    <div class="panel"><h2>Alerts</h2><div id="alerts" class="muted">None yet.</div></div>
+    <div class="panel"><h2>Auto-fixes</h2><table id="fixes"></table></div>
+    <div class="panel"><h2>Autopilot brain checks</h2><div id="autopilot" class="muted">None yet.</div></div>
+  </div>
+</div>
+<script>
+const banner = location.pathname.startsWith('/overlay');
+if (banner) document.body.classList.add('banner');
+const $ = id => document.getElementById(id);
+const el = (tag, text, cls) => { const e = document.createElement(tag); if (text !== undefined) e.textContent = text; if (cls) e.className = cls; return e; };
+const when = t => new Date(t).toLocaleString();
+
+function levelChart(points) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  if (!points || points.length < 2) return svg;
+  const t0 = new Date(points[0].t), t1 = new Date(points[points.length-1].t);
+  const maxL = Math.max(...points.map(p => p.level)), minL = Math.min(...points.map(p => p.level));
+  const W = 600, H = 120, P = 6;
+  const x = t => P + (W-2*P) * ((new Date(t) - t0) / Math.max(1, t1 - t0));
+  const y = l => H - P - (H-2*P) * ((l - minL) / Math.max(1, maxL - minL));
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const path = document.createElementNS(ns, 'polyline');
+  path.setAttribute('points', points.map(p => `${x(p.t)},${y(p.level)}`).join(' '));
+  path.setAttribute('fill', 'none'); path.setAttribute('stroke', '#d9b25f'); path.setAttribute('stroke-width', '2.5');
+  svg.appendChild(path);
+  return svg;
+}
+
+function render(s) {
+  const day = s.challenge.day > 0 ? `Day ${s.challenge.day}` : '';
+  $('title').textContent = s.challenge.name || 'Koolo AI Extras';
+  $('sub').textContent = `${day ? day + ' · ' : ''}updated ${new Date(s.updated).toLocaleTimeString()}`;
+
+  const c = s.summary[0];
+  const b = $('banner'); b.replaceChildren();
+  if (day) b.appendChild(el('div', day, 'day'));
+  if (c) {
+    for (const [k, v] of [['Level', c.level], ['Deaths', c.deathsTotal], ['Games', c.gamesTotal], ['XP / hour', c.expPerHour.toLocaleString()]]) {
+      const d = el('div'); d.appendChild(el('span', k, 'k')); d.appendChild(document.createTextNode(v)); b.appendChild(d);
+    }
+  }
+  if (banner) return;
+
+  const chars = $('chars'); chars.replaceChildren(el('h2', 'Characters'));
+  if (!s.summary.length) chars.appendChild(el('div', 'No games recorded yet.', 'muted'));
+  for (const c of s.summary) {
+    chars.appendChild(el('div', `${c.character} · level ${c.level || '?'}`));
+    const g = el('div', undefined, 'stats');
+    for (const [k, v] of [['Games today', c.gamesToday], ['Deaths today', c.deathsToday], ['XP / hour', c.expPerHour.toLocaleString()],
+                          ['Deaths / game', c.deathRate.toFixed(2)], ['Games total', c.gamesTotal], ['Deaths total', c.deathsTotal],
+                          ['Chickens', c.chickens], ['Errors', c.errors]]) {
+      const d = el('div', undefined, 'stat'); d.appendChild(el('b', String(v))); d.appendChild(el('span', k)); g.appendChild(d);
+    }
+    chars.appendChild(g);
+    chars.appendChild(el('div', 'Level over time', 'muted'));
+    chars.appendChild(levelChart(c.levelHistory));
+    if (c.byVersion && c.byVersion.length > 1) {
+      const t = el('table'); t.appendChild(el('tr')).append(el('th', 'Version'), el('th', 'Games'), el('th', 'Deaths / game'));
+      for (const v of c.byVersion) t.appendChild(el('tr')).append(el('td', v.version || '?'), el('td', v.games), el('td', v.deathRate.toFixed(2)));
+      chars.appendChild(el('div', 'By Koolo version (did a fix help?)', 'muted')); chars.appendChild(t);
+    }
+  }
+
+  const m = $('modules'); m.replaceChildren();
+  m.appendChild(el('tr')).append(el('th', 'Module'), el('th', 'State'), el('th', 'Restarts'), el('th', 'Last error'));
+  for (const h of s.modules) {
+    const tr = el('tr'); const st = el('td'); st.appendChild(el('span', h.state, 'pill ' + h.state));
+    tr.append(el('td', h.name), st, el('td', h.restarts), el('td', (h.lastError || '').split('\n')[0]));
+    m.appendChild(tr);
+  }
+
+  const a = $('alerts'); a.replaceChildren();
+  if (!s.alerts.length) a.appendChild(el('div', 'None yet.', 'muted'));
+  for (const x of s.alerts) { const d = el('div', undefined, 'alert'); d.appendChild(el('div', when(x.time), 'muted')); d.appendChild(document.createTextNode(x.text)); a.appendChild(d); }
+
+  const f = $('fixes'); f.replaceChildren();
+  f.appendChild(el('tr')).append(el('th', 'When'), el('th', 'Why'), el('th', 'Outcome'), el('th', 'Branch'));
+  for (const x of s.fixes) f.appendChild(el('tr')).append(el('td', when(x.time)), el('td', x.reason), el('td', x.outcome + (x.detail ? ': ' + x.detail.split('\n')[0] : '')), el('td', x.branch || ''));
+
+  const ap = $('autopilot'); ap.replaceChildren();
+  if (!s.autopilot.length) ap.appendChild(el('div', 'None yet.', 'muted'));
+  for (const x of s.autopilot) { const d = el('div', undefined, 'alert'); d.appendChild(el('div', when(x.time) + (x.ok ? '' : ' (failed)'), 'muted')); d.appendChild(document.createTextNode(x.report || '')); ap.appendChild(d); }
+}
+
+async function tick() {
+  try { const r = await fetch('/api/state', {cache: 'no-store'}); render(await r.json()); }
+  catch (e) { $('sub').textContent = 'koolo-extras is not running'; }
+}
+tick(); setInterval(tick, 5000);
+</script>
+</body>
+</html>

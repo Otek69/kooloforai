@@ -30,6 +30,16 @@ If the tools aren't available, Koolo isn't running. Ask the user to start it.
 5. **Verify:** start the character with `koolo_control`, then watch `koolo_logs` and `koolo_status` until the problem is gone. Never claim it's fixed without this.
 6. **Commit** on a branch with a clear message. Don't push unless the user asks.
 
+## Extras (koolo-extras.exe)
+
+New features go into **`internal/extras/`** first, not into Koolo. They run as modules of the separate `koolo-extras.exe`, which talks to Koolo **only through the MCP server**, so an extra can never crash Koolo. Each module runs under a supervisor (panic recovery, restart with backoff, switched off after 3 crashes in 10 minutes). Keep it that way:
+- A new feature becomes a new `Module` (`Name`/`Run`), switchable in `config/extras.yaml.dist`, with tests in `internal/extras/*_test.go` using the fakes there. `go test ./internal/extras/` runs on any OS.
+- If an extra needs new data from Koolo, add a **read-only** MCP tool in `internal/server/mcp.go` (like `koolo_metrics`) rather than changing Koolo's game logic.
+- **Promoting** an extra into Koolo happens only after it has run reliably for a while, and only when the user asks.
+- Extras work happens on the `extras` branch and is merged into `main` when the user confirms it works.
+
+See EXTRAS.md for the modules (stats, watchdog/auto-fix, autopilot, patchwatch, alerts, session, dashboard).
+
 ## Code map
 
 - `cmd/koolo`: main program. `cmd/koolo-doctor`: diagnostics tool.
@@ -38,6 +48,7 @@ If the tools aren't available, Koolo isn't running. Ask the user to start it.
 - `internal/health`: potions, chicken, curse chicken. `internal/pather`: pathfinding.
 - `internal/brain`: AI brain (planning, survival tuning, death lessons, assistant, local and Claude providers).
 - `internal/strategy`: pure, testable game logic (experience filter).
+- `internal/extras` + `cmd/koolo-extras`: the extras program (see above).
 - `internal/server`: web UI, assistant page, MCP server (`mcp.go`).
 - `third_party/d2go`: the memory reader, patched (see the `kooloforai patch` comments). **After a D2R patch,** the address patterns in `pkg/memory/offset.go` and `diagnose.go` may need updating. `koolo_doctor` shows which ones are missing.
 

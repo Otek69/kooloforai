@@ -16,3 +16,6 @@
 /brain
 /diagnostics
 /crash-reports
+!/config/extras.yaml.dist
+/extras
+/tmpdash

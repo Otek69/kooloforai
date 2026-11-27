@@ -3,6 +3,7 @@ module github.com/hectorgimenez/koolo
 go 1.25.0
 
 require (
+	github.com/andreykaipov/goobs v1.11.1
 	github.com/anthropics/anthropic-sdk-go/v2 v2.15.0
 	github.com/billgraziano/dpapi v0.5.0
 	github.com/bwmarrin/discordgo v0.28.1
@@ -21,13 +22,17 @@ require (
 require (
 	git.wow.st/gmp/jni v0.0.0-20210610011705-34026c7e22d0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.1.2 // indirect
+	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/expr-lang/expr v1.16.9 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
+	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/inkeliz/w32 v1.0.2 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
+	github.com/mmcloughlin/profile v0.1.1 // indirect
+	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/segmentio/asm v1.1.3 // indirect

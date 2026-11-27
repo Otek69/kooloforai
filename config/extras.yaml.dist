@@ -1,0 +1,56 @@
+# Koolo AI Extras (koolo-extras.exe): optional features that run NEXT TO Koolo in their own program.
+# If an extra fails, Koolo keeps playing. A crashing module is restarted, and switched off after 3 crashes in 10 minutes.
+# Dashboard: http://localhost:8088/   OBS progress banner: http://localhost:8088/overlay
+
+kooloURL: http://localhost:8087/mcp
+# Your Koolo AI folder. Empty = the folder koolo-extras.exe is in.
+installDir: ""
+# Your kooloforai git checkout (git clone https://github.com/Otek69/kooloforai). Needed for auto-fix and autopilot.
+repoDir: ""
+dashboardPort: 8088
+# Claude Code command (installed with "npm install -g @anthropic-ai/claude-code" or the Claude Code installer).
+claudeCommand: claude
+
+challenge:
+  name: AI plays Diablo II
+  startDate: ""          # e.g. 2026-11-28, shows "Day N" on the dashboard and banner
+
+stats:
+  enabled: true
+  intervalSeconds: 30
+  milestoneLevels: [5, 10, 15, 20, 25, 30, 40, 50, 60, 70, 80, 90, 99]
+  deathStreak: 3         # alert after this many deaths in a row
+
+watchdog:
+  enabled: true
+  restartKoolo: true     # restart koolo.exe if it stops
+  autofix: code          # code = Claude Code may change settings and code | settings = settings only | off = alert only
+  maxFixesPerDay: 3
+  stallMinutes: 25       # a running character that finishes no game for this long counts as stuck
+  errorBurst: 15         # this many new error lines in Koolo's log trigger a fix
+  verifyMinutes: 30      # if the same problem returns within this time, the fix is rolled back
+  intervalSeconds: 20
+
+autopilot:               # the Claude Desktop "check", run automatically by Claude Code on your plan
+  enabled: false
+  everyGames: 10
+  minMinutes: 30
+  maxPerDay: 12
+
+patchWatch:
+  enabled: true
+  intervalMinutes: 5
+
+alerts:
+  enabled: true
+  discordWebhook: ""     # Discord: channel settings > Integrations > Webhooks > New webhook > Copy URL
+
+session:                 # exports each play session for the video pipeline (d2live-edit)
+  enabled: true
+  screenshotEverySeconds: 90
+  idleMinutesToEnd: 5
+  obs:
+    enabled: false       # start/stop OBS recording automatically (OBS: Tools > WebSocket Server Settings)
+    host: localhost
+    port: 4455
+    password: ""

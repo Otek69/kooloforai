@@ -67,10 +67,12 @@ Section "Koolo AI (required)" SecMain
   File "${BUILD_DIR}\koolo.exe"
   File "${BUILD_DIR}\koolo-debug.exe"
   File "${BUILD_DIR}\koolo-doctor.exe"
+  File "${BUILD_DIR}\koolo-extras.exe"
   File "..\README.md"
   File "..\AI-BRAIN.md"
   File "..\DEBUGGING.md"
   File "..\CLAUDE-DESKTOP.md"
+  File "..\EXTRAS.md"
   File "/oname=brain-playbook.md" "..\internal\brain\playbook.md"
   File "..\LICENSE"
 
@@ -84,6 +86,8 @@ Section "Koolo AI (required)" SecMain
   SetOutPath "$INSTDIR"
   !insertmacro InstallConfigOnce "..\config\koolo.yaml.dist" "koolo.yaml"
   !insertmacro InstallConfigOnce "..\config\brain.yaml.dist" "brain.yaml"
+  !insertmacro InstallConfigOnce "..\config\extras.yaml.dist" "extras.yaml"
+  File "/oname=config\extras.yaml.dist" "..\config\extras.yaml.dist"
   File "/oname=config\brain.yaml.dist" "..\config\brain.yaml.dist"
 
   CreateDirectory "$INSTDIR\logs"
@@ -99,6 +103,9 @@ Section "Koolo AI (required)" SecMain
   CreateShortcut "$SMPROGRAMS\${APP}\AI setup guide.lnk" "$INSTDIR\AI-BRAIN.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Debugging help.lnk" "$INSTDIR\DEBUGGING.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Claude Desktop brain setup.lnk" "$INSTDIR\CLAUDE-DESKTOP.md"
+  CreateShortcut "$SMPROGRAMS\${APP}\Koolo AI Extras.lnk" "$INSTDIR\koolo-extras.exe" "" "$INSTDIR\koolo.exe" 0
+  CreateShortcut "$SMPROGRAMS\${APP}\Extras dashboard.lnk" "http://localhost:8088/"
+  CreateShortcut "$SMPROGRAMS\${APP}\Extras guide.lnk" "$INSTDIR\EXTRAS.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Uninstall Koolo AI.lnk" "$INSTDIR\uninstall.exe"
 
   ; Uninstall entry (per user)
@@ -129,6 +136,9 @@ Section "Uninstall"
   Delete "$INSTDIR\koolo.exe"
   Delete "$INSTDIR\koolo-debug.exe"
   Delete "$INSTDIR\koolo-doctor.exe"
+  Delete "$INSTDIR\koolo-extras.exe"
+  Delete "$INSTDIR\EXTRAS.md"
+  Delete "$INSTDIR\config\extras.yaml.dist"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\AI-BRAIN.md"
   Delete "$INSTDIR\DEBUGGING.md"
@@ -148,6 +158,7 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\crash-reports"
     RMDir /r "$INSTDIR\screenshots"
     RMDir /r "$INSTDIR\brain"
+    RMDir /r "$INSTDIR\extras"
   keep:
   RMDir "$INSTDIR"
 

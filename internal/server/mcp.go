@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hectorgimenez/d2go/pkg/data/stat"
 	"github.com/hectorgimenez/koolo/internal/brain"
 	"github.com/hectorgimenez/koolo/internal/config"
 	"github.com/hectorgimenez/koolo/internal/event"
@@ -119,6 +120,34 @@ func (s *HttpServer) addMCPTools(srv *mcp.Server) {
 			}
 			out["characters"] = chars
 			out["brain"] = brain.Default.View()
+			return jsonResult(out), nil, nil
+		})
+
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_metrics", Description: "Read-only numbers per running character as JSON: inGame, level, experience, gold, area, lifePct (used by koolo-extras for statistics)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			type metrics struct {
+				InGame     bool   `json:"inGame"`
+				Level      int    `json:"level"`
+				Experience int    `json:"experience"`
+				Gold       int    `json:"gold"`
+				Area       string `json:"area"`
+				LifePct    int    `json:"lifePct"`
+			}
+			out := map[string]metrics{}
+			for _, name := range s.manager.AvailableSupervisors() {
+				d := s.liveData(name)
+				if d == nil {
+					continue
+				}
+				pu := d.PlayerUnit
+				lvl, _ := pu.FindStat(stat.Level, 0)
+				exp, _ := pu.FindStat(stat.Experience, 0)
+				m := metrics{InGame: d.IsIngame, Level: lvl.Value, Experience: exp.Value, Gold: pu.TotalPlayerGold(), Area: pu.Area.Area().Name}
+				if mx, _ := pu.FindStat(stat.MaxLife, 0); mx.Value > 0 {
+					m.LifePct = pu.HPPercent()
+				}
+				out[name] = m
+			}
 			return jsonResult(out), nil, nil
 		})
 
