@@ -92,7 +92,15 @@ type Brain struct {
 	cfg    Config
 	client anthropic.Client
 	local  *localClient
-	logger *slog.Logger
+
+	// desktop mode (Claude Desktop app as the brain, via MCP)
+	desktop     bool
+	plan        *DesktopPlan
+	events      []Event
+	eventID     int
+	failureJPEG []byte
+	failureText string
+	logger      *slog.Logger
 
 	mu       sync.Mutex
 	spentUSD float64
@@ -142,6 +150,10 @@ func Load(path string, logger *slog.Logger) (*Brain, error) {
 		}
 		b.cfg = cfg
 		b.local = &localClient{baseURL: strings.TrimRight(cfg.LocalURL, "/"), apiKey: cfg.APIKey}
+	case "desktop":
+		b.desktop = true
+		cfg.SmartModel, cfg.FastModel = "Claude Desktop", "Claude Desktop"
+		b.cfg = cfg
 	case "", "anthropic":
 		opts := []option.RequestOption{option.WithMaxRetries(2)}
 		if cfg.APIKey != "" {
@@ -151,7 +163,7 @@ func Load(path string, logger *slog.Logger) (*Brain, error) {
 		}
 		b.client = anthropic.NewClient(opts...)
 	default:
-		return Default, fmt.Errorf("brain: unknown provider %q (use anthropic or local)", cfg.Provider)
+		return Default, fmt.Errorf("brain: unknown provider %q (use anthropic, local or desktop)", cfg.Provider)
 	}
 	go b.worker()
 	Default = b
@@ -192,6 +204,9 @@ type callOpts struct {
 }
 
 func (b *Brain) call(ctx context.Context, o callOpts) (string, error) {
+	if b.desktop {
+		return "", errDesktopMode
+	}
 	b.mu.Lock()
 	if b.cfg.MaxSessionUSD > 0 && b.spentUSD >= b.cfg.MaxSessionUSD {
 		b.mu.Unlock()

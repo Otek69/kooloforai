@@ -286,6 +286,11 @@ func checkBrain() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	if provider == "desktop" {
+		line(ok, "Claude Desktop", "desktop mode: Claude Desktop is the brain via the koolo MCP server (no API key needed). "+
+			"Koolo serves it at http://localhost:8087/mcp while it runs")
+		return
+	}
 	if provider == "local" {
 		url := strings.TrimRight(c.LocalURL, "/")
 		if url == "" {

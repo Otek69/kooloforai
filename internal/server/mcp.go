@@ -29,11 +29,14 @@ import (
 func (s *HttpServer) mcpHandler() http.Handler {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "koolo", Version: config.Version}, &mcp.ServerOptions{
 		Instructions: "Tools for the Koolo AI Diablo II: Resurrected bot running on this PC (offline characters). " +
+			"As the bot's brain: read koolo_events (since the last id you saw) and koolo_status, look at koolo_last_failure after deaths, " +
+			"then set the next plan with koolo_brain_plan, save lessons with koolo_add_lesson and talk to viewers with koolo_say. " +
 			"To debug: koolo_doctor and koolo_logs first, then koolo_status / koolo_game_state / koolo_screenshot. " +
 			"Settings changes go through koolo_apply_change (validated). Code fixes: edit the Go source in this repo, " +
 			"rebuild with scripts/dev-rebuild.ps1, then verify with these tools.",
 	})
 	s.addMCPTools(srv)
+	s.addBrainTools(srv)
 	h := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return srv }, &mcp.StreamableHTTPOptions{})
 	return loopbackOnly(h)
 }
@@ -278,6 +281,79 @@ func (s *HttpServer) addMCPTools(srv *mcp.Server) {
 			}
 			s.logger.Info("MCP change applied: " + msg)
 			return textResult("%s", msg), nil, nil
+		})
+}
+
+// Brain tools: with provider "desktop" in config/brain.yaml, Claude Desktop is the brain and uses these.
+func (s *HttpServer) addBrainTools(srv *mcp.Server) {
+	type eventsIn struct {
+		SinceID int `json:"sinceId,omitempty" jsonschema:"only events with a higher id (use the last id you saw); 0 = all recent"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_events", Description: "What happened in the game since you last looked: new games, runs started/finished, items stashed, deaths, chickens, plan changes. Each event has an id."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in eventsIn) (*mcp.CallToolResult, any, error) {
+			ev := brain.Default.Events(in.SinceID)
+			if ev == nil {
+				return textResult("No events (the AI brain is disabled in config/brain.yaml, or nothing happened yet)."), nil, nil
+			}
+			return jsonResult(ev), nil, nil
+		})
+
+	type planIn struct {
+		Character string                  `json:"character" jsonschema:"character name"`
+		Runs      []string                `json:"runs" jsonschema:"ordered runs for the next games, chosen from the character's enabled runs"`
+		Goal      string                  `json:"goal,omitempty" jsonschema:"long-term goal in one sentence"`
+		Thought   string                  `json:"thought,omitempty" jsonschema:"1-2 sentences for the stream overlay explaining the plan"`
+		Survival  *brain.SurvivalSettings `json:"survival,omitempty" jsonschema:"optional potion/chicken thresholds in percent of life (clamped to safe ranges)"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_brain_plan", Description: "Set the plan Koolo follows from the next game: run order, goal, optional survival thresholds, and a thought for the overlay."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in planIn) (*mcp.CallToolResult, any, error) {
+			name, err := s.pickCharacter(in.Character)
+			if err != nil {
+				return nil, nil, err
+			}
+			msg, err := brain.Default.SetDesktopPlan(config.Characters[name], in.Runs, in.Goal, in.Survival)
+			if err != nil {
+				return nil, nil, err
+			}
+			if in.Thought != "" {
+				_ = brain.Default.Say(in.Thought)
+			}
+			return textResult("%s", msg), nil, nil
+		})
+
+	type sayIn struct {
+		Text string `json:"text" jsonschema:"1-2 sentences of commentary, first person, for the stream overlay"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_say", Description: "Show a thought on the stream overlay (brain/overlay.txt)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in sayIn) (*mcp.CallToolResult, any, error) {
+			if err := brain.Default.Say(in.Text); err != nil {
+				return nil, nil, err
+			}
+			return textResult("Shown on the overlay."), nil, nil
+		})
+
+	type lessonIn struct {
+		Text string `json:"text" jsonschema:"one short, concrete rule for the future (e.g. which run to avoid until which level)"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_add_lesson", Description: "Save a lesson in the AI's long-term memory (shown in koolo_status and used in future plans)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in lessonIn) (*mcp.CallToolResult, any, error) {
+			if err := brain.Default.AddLesson(in.Text); err != nil {
+				return nil, nil, err
+			}
+			return textResult("Lesson saved."), nil, nil
+		})
+
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_last_failure", Description: "Screenshot and description of the most recent death or chicken."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			jpg, text := brain.Default.LastFailure()
+			if text == "" {
+				return textResult("No death or chicken recorded this session."), nil, nil
+			}
+			content := []mcp.Content{&mcp.TextContent{Text: text}}
+			if len(jpg) > 0 {
+				content = append(content, &mcp.ImageContent{Data: jpg, MIMEType: "image/jpeg"})
+			}
+			return &mcp.CallToolResult{Content: content}, nil, nil
 		})
 }
 

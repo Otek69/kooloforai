@@ -17,6 +17,7 @@ While Koolo runs, it serves an MCP server at `http://localhost:8087/mcp` (regist
 | `koolo_control` | start / stop / pause a character |
 | `koolo_apply_change` | Validated settings change: pickit rule, run list, curse chicken, AI goal |
 | `koolo_reload_config` | Reload config files |
+| `koolo_events`, `koolo_brain_plan`, `koolo_add_lesson`, `koolo_say`, `koolo_last_failure` | Brain tools (used by Claude Desktop in `provider: desktop` mode, see CLAUDE-DESKTOP.md) |
 
 If the tools aren't available, Koolo isn't running. Ask the user to start it.
 

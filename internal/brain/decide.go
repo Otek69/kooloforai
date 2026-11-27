@@ -70,6 +70,11 @@ func (b *Brain) PlanGame(ctx context.Context, snap Snapshot, cfg *config.Charact
 	b.mem.mu.Lock()
 	b.mem.Games++
 	b.mem.mu.Unlock()
+	if b.desktop {
+		b.addEvent("game", fmt.Sprintf("New game. Level %d, %s, life %d%%, gold %d", snap.Level, snap.Area, snap.LifePct, snap.Gold))
+		b.saveMemory()
+		return b.applyDesktopPlan(cfg)
+	}
 
 	names := make([]string, 0, len(allowed))
 	allowedSet := map[string]config.Run{}
@@ -202,6 +207,7 @@ func (b *Brain) HandleEvent(_ context.Context, e event.Event) error {
 		b.mu.Lock()
 		b.curRun = ev.RunName
 		b.mu.Unlock()
+		b.addEvent("run_started", ev.RunName)
 		b.say("run", "Starting "+prettyRun(ev.RunName)+".")
 
 	case event.RunFinishedEvent:
@@ -210,7 +216,8 @@ func (b *Brain) HandleEvent(_ context.Context, e event.Event) error {
 		b.mu.Unlock()
 		b.mem.recordRun(ev.RunName, string(ev.Reason), level)
 		b.saveMemory()
-		if ev.Reason == event.FinishedOK {
+		b.addEvent("run_finished", fmt.Sprintf("%s: %s", ev.RunName, ev.Reason))
+		if ev.Reason == event.FinishedOK && !b.desktop {
 			b.async(func() {
 				b.comment("run_finished", fmt.Sprintf("You just finished the %s run successfully.", prettyRun(ev.RunName)))
 			})
@@ -221,8 +228,9 @@ func (b *Brain) HandleEvent(_ context.Context, e event.Event) error {
 		run := b.curRun
 		b.mu.Unlock()
 		b.mem.recordItem(run)
-		if b.cfg.CommentOnItems {
-			desc := describeItem(ev.Item.Item)
+		desc := describeItem(ev.Item.Item)
+		b.addEvent("item", fmt.Sprintf("stashed %s during %s", desc, run))
+		if b.cfg.CommentOnItems && !b.desktop {
 			b.async(func() {
 				b.comment("item", "You just found and stashed this item: "+desc+". React to it, and say whether it could be an upgrade for you.")
 			})
@@ -237,6 +245,16 @@ func (b *Brain) HandleEvent(_ context.Context, e event.Event) error {
 			b.mu.Lock()
 			run := b.curRun
 			b.mu.Unlock()
+			text := fmt.Sprintf("%s during %s: %s", reason, run, msg)
+			b.addEvent(reason, text)
+			jpg, _ := encodeJPEGBytes(img)
+			b.mu.Lock()
+			b.failureJPEG, b.failureText = jpg, text
+			b.mu.Unlock()
+			if b.desktop {
+				b.say("failure", fmt.Sprintf("Game over: %s. Waiting for the boss (Claude Desktop) to review it.", reason))
+				break
+			}
 			b.async(func() { b.analyseFailure(reason, msg, run, img) })
 		}
 	}
@@ -340,6 +358,9 @@ func (b *Brain) saveMemory() {
 }
 
 func (b *Brain) fallbackNotice(err error) {
+	if errors.Is(err, errDesktopMode) {
+		return // expected: Claude Desktop decides through MCP
+	}
 	if errors.Is(err, ErrBudget) {
 		b.mu.Lock()
 		already := len(b.history) > 0 && strings.HasPrefix(b.history[len(b.history)-1], "system: Budget")
@@ -350,6 +371,17 @@ func (b *Brain) fallbackNotice(err error) {
 		return
 	}
 	b.logger.Warn("brain: API call failed, bot continues without it", slog.Any("error", err))
+}
+
+func encodeJPEGBytes(img image.Image) ([]byte, error) {
+	if img == nil {
+		return nil, nil
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 75}); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func encodeJPEG(img image.Image) (string, error) {

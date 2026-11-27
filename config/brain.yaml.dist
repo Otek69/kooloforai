@@ -2,7 +2,9 @@
 # Koolo still does all the real-time playing. Set enabled: false to run plain Koolo.
 enabled: true
 
-# "anthropic" = Claude API (best decisions, pay per use)
+# "desktop"   = the Claude Desktop app is the brain (uses your Claude plan, no API key). Claude Desktop connects to
+#               Koolo's MCP server and sets the plan when you talk to it. See CLAUDE-DESKTOP.md
+# "anthropic" = Claude API: decides automatically every game (best, pay per use)
 # "local"     = free, runs on your own GPU via Ollama / LM Studio (set localURL; models become e.g. qwen2.5vl:7b)
 provider: anthropic
 localURL: http://localhost:11434/v1

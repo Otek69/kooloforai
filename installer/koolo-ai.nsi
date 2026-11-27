@@ -70,6 +70,8 @@ Section "Koolo AI (required)" SecMain
   File "..\README.md"
   File "..\AI-BRAIN.md"
   File "..\DEBUGGING.md"
+  File "..\CLAUDE-DESKTOP.md"
+  File "/oname=brain-playbook.md" "..\internal\brain\playbook.md"
   File "..\LICENSE"
 
   SetOutPath "$INSTDIR\tools"
@@ -96,6 +98,7 @@ Section "Koolo AI (required)" SecMain
   CreateShortcut "$SMPROGRAMS\${APP}\Open Koolo AI folder.lnk" "$INSTDIR"
   CreateShortcut "$SMPROGRAMS\${APP}\AI setup guide.lnk" "$INSTDIR\AI-BRAIN.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Debugging help.lnk" "$INSTDIR\DEBUGGING.md"
+  CreateShortcut "$SMPROGRAMS\${APP}\Claude Desktop brain setup.lnk" "$INSTDIR\CLAUDE-DESKTOP.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Uninstall Koolo AI.lnk" "$INSTDIR\uninstall.exe"
 
   ; Uninstall entry (per user)
@@ -129,6 +132,8 @@ Section "Uninstall"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\AI-BRAIN.md"
   Delete "$INSTDIR\DEBUGGING.md"
+  Delete "$INSTDIR\CLAUDE-DESKTOP.md"
+  Delete "$INSTDIR\brain-playbook.md"
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\uninstall.exe"
   RMDir /r "$INSTDIR\tools"
