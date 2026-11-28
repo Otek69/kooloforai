@@ -85,6 +85,7 @@ if exist build\tools (
     )
 )
 call :print_step "Copying tools folder"
+if exist koolo-doctor-scan.bat copy /y koolo-doctor-scan.bat build\ > nul
 xcopy /q /E /I /y tools build\tools > nul
 if !errorlevel! neq 0 (
     call :print_error "Failed to copy tools folder"

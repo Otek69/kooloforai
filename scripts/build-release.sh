@@ -16,6 +16,7 @@ go build -trimpath -ldflags="-s -w -H windowsgui ${LDFLAGS}" -o build/koolo.exe 
 go build -trimpath -ldflags="${LDFLAGS}" -o build/koolo-debug.exe ./cmd/koolo
 go build -trimpath -ldflags="-s -w ${LDFLAGS}" -o build/koolo-doctor.exe ./cmd/koolo-doctor
 go build -trimpath -ldflags="-s -w ${LDFLAGS}" -o build/koolo-extras.exe ./cmd/koolo-extras
+cp koolo-doctor-scan.bat build/
 
 echo "Building installer..."
 makensis -V2 -DVERSION="${VERSION}" -DBUILD_DIR="../build" -DOUT_FILE="../dist/KooloAI-Setup-${VERSION}.exe" installer/koolo-ai.nsi
@@ -23,7 +24,7 @@ makensis -V2 -DVERSION="${VERSION}" -DBUILD_DIR="../build" -DOUT_FILE="../dist/K
 echo "Building portable zip..."
 PORT="build/portable/KooloAI"
 mkdir -p "$PORT/config"
-cp build/koolo.exe build/koolo-debug.exe build/koolo-doctor.exe build/koolo-extras.exe README.md AI-BRAIN.md DEBUGGING.md CLAUDE-DESKTOP.md EXTRAS.md LICENSE "$PORT/"
+cp build/koolo.exe build/koolo-debug.exe build/koolo-doctor.exe build/koolo-extras.exe README.md AI-BRAIN.md DEBUGGING.md CLAUDE-DESKTOP.md EXTRAS.md LICENSE koolo-doctor-scan.bat "$PORT/"
 cp internal/brain/playbook.md "$PORT/brain-playbook.md"
 cp -r tools "$PORT/"
 cp config/Settings.json "$PORT/config/"

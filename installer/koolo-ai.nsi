@@ -68,6 +68,7 @@ Section "Koolo AI (required)" SecMain
   File "${BUILD_DIR}\koolo-debug.exe"
   File "${BUILD_DIR}\koolo-doctor.exe"
   File "${BUILD_DIR}\koolo-extras.exe"
+  File "..\koolo-doctor-scan.bat"
   File "..\README.md"
   File "..\AI-BRAIN.md"
   File "..\DEBUGGING.md"
@@ -99,6 +100,7 @@ Section "Koolo AI (required)" SecMain
   CreateShortcut "$SMPROGRAMS\${APP}\Koolo AI (debug mode).lnk" "$INSTDIR\koolo-debug.exe" "--debug" "$INSTDIR\koolo.exe" 0
   CreateShortcut "$SMPROGRAMS\${APP}\Koolo Doctor.lnk" "$INSTDIR\koolo-doctor.exe" "" "$INSTDIR\koolo.exe" 0
   CreateShortcut "$SMPROGRAMS\${APP}\Koolo Doctor - make debug bundle.lnk" "$INSTDIR\koolo-doctor.exe" "--bundle" "$INSTDIR\koolo.exe" 0
+  CreateShortcut "$SMPROGRAMS\${APP}\Koolo Doctor - deep scan.lnk" "$INSTDIR\koolo-doctor.exe" "--scan" "$INSTDIR\koolo.exe" 0
   CreateShortcut "$SMPROGRAMS\${APP}\Open Koolo AI folder.lnk" "$INSTDIR"
   CreateShortcut "$SMPROGRAMS\${APP}\AI setup guide.lnk" "$INSTDIR\AI-BRAIN.md"
   CreateShortcut "$SMPROGRAMS\${APP}\Debugging help.lnk" "$INSTDIR\DEBUGGING.md"
@@ -137,6 +139,7 @@ Section "Uninstall"
   Delete "$INSTDIR\koolo-debug.exe"
   Delete "$INSTDIR\koolo-doctor.exe"
   Delete "$INSTDIR\koolo-extras.exe"
+  Delete "$INSTDIR\koolo-doctor-scan.bat"
   Delete "$INSTDIR\EXTRAS.md"
   Delete "$INSTDIR\config\extras.yaml.dist"
   Delete "$INSTDIR\README.md"
