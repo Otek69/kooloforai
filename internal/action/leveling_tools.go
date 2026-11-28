@@ -174,7 +174,8 @@ func getAvailableSkillKB() []data.KeyBinding {
 	ctx.SetLastAction("getAvailableSkillKB")
 
 	for _, sb := range ctx.Data.KeyBindings.Skills {
-		if sb.SkillID == -1 && (sb.Key1[0] != 0 && sb.Key1[0] != 255) || (sb.Key2[0] != 0 && sb.Key2[0] != 255) {
+		// kooloforai patch: parentheses fixed; before, a used key with a second key counted as free.
+		if sb.SkillID == -1 && ((sb.Key1[0] != 0 && sb.Key1[0] != 255) || (sb.Key2[0] != 0 && sb.Key2[0] != 255)) {
 			availableSkillKB = append(availableSkillKB, sb.KeyBinding)
 		}
 	}
@@ -193,9 +194,20 @@ func EnsureSkillBindings() error {
 
 	mainSkill, skillsToBind := char.SkillsToBind()
 	skillsToBind = append(skillsToBind, skill.TomeOfTownPortal)
+	// kooloforai patch: without a tome yet, bind the Scroll of Town Portal so portals work from the start.
+	if !hasSkill(ctx, skill.TomeOfTownPortal) {
+		if _, found := ctx.Data.KeyBindings.TownPortalKB(); !found {
+			skillsToBind = append(skillsToBind, skill.ScrollOfTownPortal)
+		}
+	}
 	notBoundSkills := make([]skill.ID, 0)
+	seen := map[skill.ID]bool{}
 	for _, sk := range skillsToBind {
-		if _, found := ctx.Data.KeyBindings.KeyBindingForSkill(sk); !found && ctx.Data.PlayerUnit.Skills[sk].Level > 0 {
+		if seen[sk] {
+			continue
+		}
+		seen[sk] = true
+		if _, found := ctx.Data.KeyBindings.KeyBindingForSkill(sk); !found && hasSkill(ctx, sk) {
 			notBoundSkills = append(notBoundSkills, sk)
 		}
 	}
@@ -208,7 +220,12 @@ func EnsureSkillBindings() error {
 
 		availableKB := getAvailableSkillKB()
 
+		if len(availableKB) < len(notBoundSkills) {
+			ctx.Logger.Warn("Not enough free skill keys to bind all skills", "free", len(availableKB), "needed", len(notBoundSkills))
+			notBoundSkills = notBoundSkills[:len(availableKB)]
+		}
 		for i, sk := range notBoundSkills {
+			ctx.Logger.Info("Binding skill to a free key", "skill", skill.SkillNames[sk])
 			skillPosition, found := calculateSkillPositionInUI(false, sk)
 			if !found {
 				continue
@@ -405,4 +422,10 @@ func WaitForAllMembersWhenLeveling() error {
 			return nil
 		}
 	}
+}
+
+// hasSkill: learned (level > 0) or granted by an item such as a tome or scrolls (quantity > 0).
+func hasSkill(ctx *context.Status, sk skill.ID) bool {
+	p, ok := ctx.Data.PlayerUnit.Skills[sk]
+	return ok && (p.Level > 0 || p.Quantity > 0)
 }

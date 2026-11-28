@@ -409,7 +409,22 @@ func checkGame() {
 		line(fail, "Patterns", fmt.Sprintf("essential addresses missing: %s (also missing: %s). If you ran this at the character screen, enter a game and run it again first: D2R only unlocks some of its code while it runs it, and once found, an address is remembered for this D2R build. Still missing in a game: the memory reader needs a new pattern (config/memory-patterns.yaml)",
 			strings.Join(missingEssential, ", "), strings.Join(missing, ", ")))
 	default:
-		line(warn, "Patterns", "optional addresses missing: "+strings.Join(missing, ", ")+". Koolo can play; only the features using them are off (they may still be found on a later start, and are then remembered)")
+		impact := map[string]string{
+			"Expansion":         "only picks where the main-player flag is read; the live game check below shows whether players are read correctly",
+			"Roster":            "other party members; always empty offline, so offline play is not affected",
+			"TerrorZones":       "terror zone runs only",
+			"Ping":              "online ping only",
+			"WidgetStates":      "weapon swap detection",
+			"KeyBindingsSkills": "skill hotkeys (Koolo also searches the table itself)",
+		}
+		line(info, "Patterns", "optional addresses missing: "+strings.Join(missing, ", ")+". Koolo keeps searching for them in the background and remembers what it finds")
+		for _, m := range missing {
+			if why, ok := impact[m]; ok {
+				line(info, m, "used for: "+why)
+			} else {
+				line(warn, m, "missing")
+			}
+		}
 	}
 
 	if hasArg("--scan") {

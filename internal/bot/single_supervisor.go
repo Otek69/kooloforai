@@ -123,6 +123,11 @@ func (s *SinglePlayerSupervisor) Start() error {
 					}
 					missingKeybindings = kept
 				}
+				// Leveling characters bind their skills themselves in town (EnsureSkillBindings), so don't pause.
+				if _, leveling := s.bot.ctx.Char.(ct.LevelingCharacter); leveling && len(missingKeybindings) > 0 {
+					s.bot.ctx.Logger.Info("Missing key bindings will be bound automatically in town", slog.Any("skills", missingKeybindings))
+					missingKeybindings = nil
+				}
 				if len(missingKeybindings) > 0 {
 					var missingKeybindingsText = "Missing key binding for skill(s):"
 					for _, v := range missingKeybindings {
