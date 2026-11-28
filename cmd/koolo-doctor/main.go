@@ -71,6 +71,8 @@ func section(title string) {
 
 func main() {
 	bundle := hasArg("--bundle")
+	// Real pixels: with Windows display scaling (e.g. 125%) a DPI-unaware program sees 1280x720 as 1024x576.
+	_, _, _ = windows.NewLazySystemDLL("user32.dll").NewProc("SetProcessDPIAware").Call()
 
 	// Reading game memory needs administrator rights (Koolo itself runs elevated), so ask for them once.
 	if !windows.GetCurrentProcessToken().IsElevated() && !hasArg("--no-elevate") {
@@ -162,7 +164,11 @@ func checkSystem() {
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		for _, d := range bi.Deps {
 			if d.Path == "github.com/hectorgimenez/d2go" {
-				line(info, "d2go", d.Version+" (the memory reader; must match your D2R patch)")
+				v := d.Version
+				if d.Replace != nil {
+					v += " + kooloforai patches (third_party/d2go)"
+				}
+				line(info, "d2go", v+" (the memory reader; must match your D2R patch)")
 			}
 		}
 	}
@@ -356,7 +362,9 @@ func checkGame() {
 	}
 	bad, total := proc.MemoryHealth()
 	if bad > 0 {
-		line(info, "Memory", fmt.Sprintf("%d of %d pages unreadable (skipped; normal on newer D2R builds)", bad, total))
+		line(info, "Memory", fmt.Sprintf("%d of %d pages still unreadable after %d read passes (newer D2R builds lock parts of their code)", bad, total, proc.ReadPasses()))
+	} else {
+		line(ok, "Memory", fmt.Sprintf("all %d pages read (%d passes)", total, max(1, proc.ReadPasses())))
 	}
 	var missing []string
 	essentialMissing := false

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -24,6 +25,9 @@ type Process struct {
 	// unreadablePages counts 4 KB pages of the game module that could not be read (kooloforai patch).
 	unreadablePages int
 	totalPages      int
+	passes          int
+	// MaxReadPasses limits the retry passes over unreadable pages (default 40, about 6 seconds).
+	MaxReadPasses int
 }
 
 const (
@@ -121,24 +125,69 @@ func (p *Process) getProcessMemory() ([]byte, error) {
 		return nil, errors.New("game module has size 0")
 	}
 	data := make([]byte, size)
-	p.unreadablePages, p.totalPages = 0, (size+page-1)/page
+	pages := (size + page - 1) / page
+	done := make([]bool, pages)
+	readPage := func(pg int) bool {
+		off := pg * page
+		m := min(page, size-off)
+		return windows.ReadProcessMemory(p.handler, p.moduleBaseAddressPtr+uintptr(off), &data[off], uintptr(m), nil) == nil
+	}
+	// Pass 1: big chunks, falling back to single pages inside a failing chunk.
 	for off := 0; off < size; off += chunk {
 		n := min(chunk, size-off)
 		if windows.ReadProcessMemory(p.handler, p.moduleBaseAddressPtr+uintptr(off), &data[off], uintptr(n), nil) == nil {
+			for pg := off / page; pg < (off+n+page-1)/page; pg++ {
+				done[pg] = true
+			}
 			continue
 		}
-		for pg := off; pg < off+n; pg += page {
-			m := min(page, off+n-pg)
-			if windows.ReadProcessMemory(p.handler, p.moduleBaseAddressPtr+uintptr(pg), &data[pg], uintptr(m), nil) != nil {
-				p.unreadablePages++
-			}
+		for pg := off / page; pg < (off+n+page-1)/page; pg++ {
+			done[pg] = readPage(pg)
 		}
 	}
-	if p.unreadablePages == p.totalPages {
+	missing := func() int {
+		n := 0
+		for _, d := range done {
+			if !d {
+				n++
+			}
+		}
+		return n
+	}
+	// kooloforai patch: newer D2R builds unlock and lock parts of their code while running, so WHICH pages are
+	// readable changes over time. The code itself doesn't change, so we retry the missing pages for a few
+	// seconds and keep everything we managed to read (union of all passes).
+	best, stale := missing(), 0
+	for pass := 2; pass <= p.maxPasses() && best > 0 && stale < 8; pass++ {
+		time.Sleep(150 * time.Millisecond)
+		for pg := range done {
+			if !done[pg] {
+				done[pg] = readPage(pg)
+			}
+		}
+		if m := missing(); m < best {
+			best, stale = m, 0
+		} else {
+			stale++
+		}
+		p.passes = pass
+	}
+	p.unreadablePages, p.totalPages = best, pages
+	if best == pages {
 		return data, errors.New("no page of the game module could be read (missing administrator rights?)")
 	}
 	return data, nil
 }
+
+func (p *Process) maxPasses() int {
+	if p.MaxReadPasses > 0 {
+		return p.MaxReadPasses
+	}
+	return 40
+}
+
+// ReadPasses reports how many read passes the last scan used (kooloforai patch).
+func (p *Process) ReadPasses() int { return p.passes }
 
 // MemoryHealth reports how much of the game module was readable at the last scan (kooloforai patch).
 func (p *Process) MemoryHealth() (unreadablePages, totalPages int) {

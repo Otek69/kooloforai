@@ -13,6 +13,7 @@ import (
 )
 
 type GameReader struct {
+	offsetsAt time.Time // when offsets were last calculated (kooloforai patch)
 	offset Offset
 	*Process
 
@@ -42,6 +43,7 @@ var WidgetStateFlags = map[string]uint64{
 func NewGameReader(process *Process) *GameReader {
 	return &GameReader{
 		offset:              calculateOffsets(process),
+		offsetsAt:           time.Now(),
 		Process:             process,
 		monstersLastUpdate:  time.Time{},
 		inventoryLastUpdate: time.Time{},
@@ -50,8 +52,11 @@ func NewGameReader(process *Process) *GameReader {
 }
 
 func (gd *GameReader) GetData() data.Data {
-	if gd.offset.UnitTable == 0 {
+	// kooloforai patch: recalculating scans the whole module several times (seconds), so only retry
+	// every 30 seconds while an essential offset is still missing.
+	if gd.offset.UnitTable == 0 && time.Since(gd.offsetsAt) > 30*time.Second {
 		gd.offset = calculateOffsets(gd.Process)
+		gd.offsetsAt = time.Now()
 	}
 
 	// Always refresh core player data

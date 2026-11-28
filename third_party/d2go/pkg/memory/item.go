@@ -251,13 +251,13 @@ func (gd *GameReader) Inventory(rawPlayerUnits RawPlayerUnits, hover data.HoverD
 			location := item.LocationUnknown
 			switch itemLoc {
 			case 0:
-				if itemOwnerNPC == 2 || itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[0]].UnitID) {
+				if itemOwnerNPC == 2 || (len(stashPlayerUnitOrder) > 0 && itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[0]].UnitID)) {
 					location = item.LocationSharedStash
 					invPage = 1
-				} else if itemOwnerNPC == 3 || itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[1]].UnitID) {
+				} else if itemOwnerNPC == 3 || (len(stashPlayerUnitOrder) > 1 && itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[1]].UnitID)) {
 					location = item.LocationSharedStash
 					invPage = 2
-				} else if itemOwnerNPC == 4 || itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[2]].UnitID) {
+				} else if itemOwnerNPC == 4 || (len(stashPlayerUnitOrder) > 2 && itemOwnerNPC == uint(stashPlayerUnits[stashPlayerUnitOrder[2]].UnitID)) {
 					location = item.LocationSharedStash
 					invPage = 3
 				} else if 0x00002000&flags != 0 && itemOwnerNPC == 4294967295 {
