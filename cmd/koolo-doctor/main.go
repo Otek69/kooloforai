@@ -373,12 +373,17 @@ func checkGame() {
 		line(ok, "Patterns", fmt.Sprintf("all %d address patterns found in this D2R build", len(checks)))
 	case essentialMissing:
 		line(fail, "Patterns", fmt.Sprintf("essential patterns missing: %s. This D2R patch is newer than the memory reader: d2go needs an update", strings.Join(missing, ", ")))
-		return
 	default:
 		line(warn, "Patterns", "some optional patterns missing: "+strings.Join(missing, ", ")+" (related features may not work)")
 	}
 
-	// Step 2: read the live game.
+	if hasArg("--scan") {
+		deepScan(proc)
+	} else if len(missing) > 0 {
+		line(info, "Patterns", "run \"koolo-doctor.exe --scan\" (D2R running, in a game) for a deep scan that helps find the new patterns")
+	}
+
+	// Step 2: read the live game (even with missing patterns: shows what still works).
 	defer func() {
 		if r := recover(); r != nil {
 			line(fail, "Memory", fmt.Sprintf("reading the game crashed: %v", r))
@@ -444,6 +449,69 @@ func checkWindow(pid uint32) {
 	} else {
 		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
 	}
+}
+
+// deepScan prints near-matches for missing patterns and the module's unreadable regions, to help update
+// the memory reader after a D2R patch. Read-only, like the rest of the doctor.
+func deepScan(proc *memory.Process) {
+	section("Deep scan (for updating the memory reader)")
+	defer func() {
+		if r := recover(); r != nil {
+			line(fail, "Scan", fmt.Sprintf("deep scan crashed: %v", r))
+		}
+	}()
+	fuzzy, _, err := proc.FuzzyPatterns(3)
+	if err != nil {
+		line(fail, "Scan", err.Error())
+		return
+	}
+	names := make([]string, 0, len(fuzzy))
+	for n := range fuzzy {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, n := range names {
+		pat, mask := memory.PatternBytes(n)
+		line(info, n, fmt.Sprintf("wanted  %s (mask %s)", hexBytes(pat), mask))
+		if len(fuzzy[n]) == 0 {
+			line(info, n, "no near-match with up to 3 different bytes (code changed more, or it is in an unreadable region)")
+		}
+		for _, m := range fuzzy[n] {
+			line(info, n, fmt.Sprintf("near    %s at +0x%X (%d byte(s) differ)", hexBytes(m.Bytes), m.Offset, m.Mismatches))
+		}
+	}
+	regions := proc.ModuleRegions()
+	unread, unreadBytes := 0, 0
+	protects := map[uint32]int{}
+	for _, r := range regions {
+		if !r.Readable {
+			unread++
+			unreadBytes += r.Size
+			protects[r.Protect] += r.Size
+		}
+	}
+	line(info, "Regions", fmt.Sprintf("%d regions, %d unreadable (%d MB)", len(regions), unread, unreadBytes>>20))
+	for p, size := range protects {
+		line(info, "Regions", fmt.Sprintf("unreadable with protection 0x%X: %d KB", p, size>>10))
+	}
+	shown := 0
+	for _, r := range regions {
+		if !r.Readable && shown < 15 {
+			line(info, "Regions", fmt.Sprintf("unreadable +0x%X..+0x%X (state 0x%X, protect 0x%X)", r.Offset, r.Offset+r.Size, r.State, r.Protect))
+			shown++
+		}
+	}
+}
+
+func hexBytes(b []byte) string {
+	var sb strings.Builder
+	for i, x := range b {
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		fmt.Fprintf(&sb, "%02X", x)
+	}
+	return sb.String()
 }
 
 // safeDiagnose runs the pattern scan, turning a crash into an error with the location.
