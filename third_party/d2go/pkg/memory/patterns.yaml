@@ -1,0 +1,61 @@
+# kooloforai patch: how the memory reader finds each address in the D2R module.
+# Each address has one or more variants, tried in order; the first that matches wins.
+#   kind rip:   offset = match + add + int32 at (match + operandAt)
+#   kind value: offset = uint32 at (match + operandAt) + add
+# To fix an address after a D2R patch WITHOUT rebuilding, add a variant to config/memory-patterns.yaml
+# (same format). Those are tried before these. Addresses found are remembered per D2R build in
+# config/memory-cache.json.
+# essential: Koolo cannot play without it. The others only switch off single features.
+GameData:
+  essential: true
+  variants:
+    - {pattern: "44 88 25 ?? ?? ?? ?? 66 44 89 25 ?? ?? ?? ??", kind: rip, operandAt: 3, add: -289}
+UnitTable:
+  essential: true
+  variants:
+    - {pattern: "48 03 C7 49 8B 8C C6", kind: value, operandAt: 7}
+UI:
+  essential: true
+  variants:
+    - {pattern: "40 84 ED 0F 94 05", kind: rip, operandAt: 6, add: 10}
+Hover:
+  essential: true
+  variants:
+    - {pattern: "C6 84 C2 ?? ?? ?? ?? ?? 48 8B 74", kind: value, operandAt: 3, add: -1}
+Expansion:
+  variants:
+    - {pattern: "48 8B 05 ?? ?? ?? ?? 48 8B D9 F3 0F 10 50 ??", kind: rip, operandAt: 3, add: 7}
+Roster:
+  variants:
+    - {pattern: "02 45 33 D2 4D 8B", kind: rip, operandAt: -3, add: 1}
+PanelManager:
+  essential: true
+  variants:
+    - {pattern: "48 89 05 ?? ?? ?? ?? 48 85 DB 74 1E", kind: rip, operandAt: 3, add: 7}
+WidgetStates:
+  variants:
+    - {pattern: "48 8B 0D ?? ?? ?? ?? 4C 8D 44 24 ?? 48 03 C2", kind: rip, operandAt: 3, add: 7}
+Waypoints:
+  variants:
+    - {pattern: "48 89 05 ?? ?? ?? ?? 0F 11 00", kind: rip, operandAt: 3, add: 23}
+FPS:
+  variants:
+    - {pattern: "8B 1D ?? ?? ?? ?? 48 8D 05 ?? ?? ?? ?? 48 8D 4C 24 40", kind: rip, operandAt: 2, add: 6}
+KeyBindings:
+  variants:
+    - {pattern: "48 8D 05 AF EE", kind: rip, operandAt: 3, add: 7}
+KeyBindingsSkills:
+  variants:
+    - {pattern: "0F 10 04 24 48 6B C8 1C 48 8D 05", kind: rip, operandAt: 11, add: 15}
+TerrorZones:
+  variants:
+    - {pattern: "48 89 05 ?? ?? ?? ?? 48 8D 05 ?? ?? ?? ?? 48 89 05 ?? ?? ?? ?? 48 8D 05 ?? ?? ?? ?? 48 89 15 ?? ?? ?? ?? 48 89 15", kind: rip, operandAt: 3, add: 7}
+Quests:
+  variants:
+    - {pattern: "42 C6 84 28 ?? ?? ?? ?? ?? 49 FF C5 49 83 FD 29", kind: value, operandAt: 4, add: 1}
+Ping:
+  variants:
+    - {pattern: "48 8B 0D ?? ?? ?? ?? 49 2B C7", kind: rip, operandAt: 3, add: 7}
+LegacyGraphics:
+  variants:
+    - {pattern: "80 3D ?? ?? ?? ?? ?? 48 8D 54 24 30", kind: rip, operandAt: 2, add: 7}

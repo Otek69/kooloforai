@@ -2,6 +2,8 @@
 //
 //	koolo-doctor.exe            run all checks, save diagnostics\report-<time>.txt
 //	koolo-doctor.exe --bundle   checks + a zip with logs, crash reports and configs (secrets removed)
+//	koolo-doctor.exe --scan     deep scan: every address and where it came from, near-matches, regions
+//	koolo-doctor.exe --reset-cache  forget the addresses remembered for the running D2R build
 package main
 
 import (
@@ -86,6 +88,11 @@ func main() {
 	if exe, err := os.Executable(); err == nil {
 		_ = os.Chdir(filepath.Dir(exe))
 	}
+	// Same address patterns and cache as Koolo.
+	if err := memory.LoadPatternOverrides("config/memory-patterns.yaml"); err != nil {
+		fmt.Println("config/memory-patterns.yaml ignored:", err)
+	}
+	memory.SetOffsetCachePath("config/memory-cache.json")
 
 	fmt.Println("Koolo Doctor - checking your Koolo AI setup...")
 	report.WriteString("Koolo Doctor report " + time.Now().Format(time.RFC3339) + "\n")
@@ -356,6 +363,10 @@ func checkGame() {
 	line(info, "Memory", fmt.Sprintf("D2R module at 0x%X, %d MB", base, size>>20))
 
 	// Step 1: can we read the game's code, and do the address patterns still match this D2R build?
+	if hasArg("--reset-cache") {
+		proc.ResetOffsetCache()
+		line(info, "Memory", "address cache for this D2R build cleared (--reset-cache)")
+	}
 	checks, err := safeDiagnose(proc)
 	if err != nil {
 		line(fail, "Memory", err.Error())
@@ -367,23 +378,38 @@ func checkGame() {
 	} else {
 		line(ok, "Memory", fmt.Sprintf("all %d pages read (%d passes)", total, max(1, proc.ReadPasses())))
 	}
-	var missing []string
-	essentialMissing := false
-	for i, c := range checks {
-		if !c.Found {
+	var missing, missingEssential, fromCache []string
+	for _, c := range checks {
+		switch {
+		case !c.Found && c.Essential:
+			missingEssential = append(missingEssential, c.Name)
 			missing = append(missing, c.Name)
-			if i < 5 {
-				essentialMissing = true
-			}
+		case !c.Found:
+			missing = append(missing, c.Name)
+		case strings.HasPrefix(c.Source, "cache"):
+			fromCache = append(fromCache, c.Name)
 		}
+	}
+	if hasArg("--scan") || hasArg("--verbose") {
+		for _, c := range checks {
+			src := c.Source
+			if !c.Found {
+				src = "missing"
+			}
+			line(info, "Address", fmt.Sprintf("%-18s %-10s +0x%X", c.Name, src, c.Address))
+		}
+	}
+	if len(fromCache) > 0 {
+		line(info, "Patterns", "remembered from an earlier run of this D2R build (config/memory-cache.json): "+strings.Join(fromCache, ", "))
 	}
 	switch {
 	case len(missing) == 0:
-		line(ok, "Patterns", fmt.Sprintf("all %d address patterns found in this D2R build", len(checks)))
-	case essentialMissing:
-		line(fail, "Patterns", fmt.Sprintf("essential patterns missing: %s. This D2R patch is newer than the memory reader: d2go needs an update", strings.Join(missing, ", ")))
+		line(ok, "Patterns", fmt.Sprintf("all %d addresses found in this D2R build", len(checks)))
+	case len(missingEssential) > 0:
+		line(fail, "Patterns", fmt.Sprintf("essential addresses missing: %s (also missing: %s). This D2R patch is newer than the memory reader: add a pattern to config/memory-patterns.yaml or update d2go",
+			strings.Join(missingEssential, ", "), strings.Join(missing, ", ")))
 	default:
-		line(warn, "Patterns", "some optional patterns missing: "+strings.Join(missing, ", ")+" (related features may not work)")
+		line(warn, "Patterns", "optional addresses missing: "+strings.Join(missing, ", ")+". Koolo can play; only the features using them are off (they may still be found on a later start, and are then remembered)")
 	}
 
 	if hasArg("--scan") {
@@ -465,14 +491,17 @@ func checkWindow(pid uint32) {
 
 // selfHealReport tries the self-healing discoveries Koolo uses when patterns are missing.
 func selfHealReport(gr *memory.GameReader, skills map[skill.ID]skill.Points) {
-	if gr.KeyBindingsSkillsOffset() == 0 {
+	res, _ := memory.LastResolution()
+	switch src := res["KeyBindingsSkills"].Source; {
+	case src != "" && gr.KeyBindingsSkillsOffset() != 0:
+		line(ok, "Skill keys", "skill hotkey table found ("+src+")")
+	default:
+		// Search again (strict: every bound skill must be one the character has, each on one key only).
 		if addr := gr.DiscoverKeyBindingsSkills(skills); addr != 0 {
 			line(ok, "Skill keys", fmt.Sprintf("skill hotkey table found by search at 0x%X", addr))
 		} else {
 			line(warn, "Skill keys", "skill hotkey table not found yet. Bind at least one skill to a key (e.g. F1) in D2R, then scan again")
 		}
-	} else {
-		line(ok, "Skill keys", "skill hotkey table found by pattern")
 	}
 	kb := gr.GetKeyBindings()
 	var bound []string

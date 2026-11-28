@@ -90,6 +90,7 @@ Section "Koolo AI (required)" SecMain
   !insertmacro InstallConfigOnce "..\config\extras.yaml.dist" "extras.yaml"
   File "/oname=config\extras.yaml.dist" "..\config\extras.yaml.dist"
   File "/oname=config\brain.yaml.dist" "..\config\brain.yaml.dist"
+  File "/oname=config\memory-patterns.yaml.dist" "..\config\memory-patterns.yaml.dist"
 
   CreateDirectory "$INSTDIR\logs"
   CreateDirectory "$INSTDIR\diagnostics"
@@ -153,6 +154,7 @@ Section "Uninstall"
   RMDir /r "$INSTDIR\config\template"
   Delete "$INSTDIR\config\Settings.json"
   Delete "$INSTDIR\config\brain.yaml.dist"
+  Delete "$INSTDIR\config\memory-patterns.yaml.dist"
 
   MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "Also delete your settings, characters, logs, debug reports and the AI's memory?$\r$\n$\r$\nChoose No to keep them for a later reinstall." IDNO keep
     RMDir /r "$INSTDIR\config"

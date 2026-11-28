@@ -226,7 +226,7 @@ func (s *SinglePlayerSupervisor) HandleOutOfGameFlow() error {
 
 			// Create the game
 			if err := s.bot.ctx.Manager.NewGame(); err != nil {
-				return fmt.Errorf("failed to create game")
+				return fmt.Errorf("failed to create game: %w", err)
 			}
 
 			return nil
@@ -282,7 +282,7 @@ func (s *SinglePlayerSupervisor) HandleOutOfGameFlow() error {
 
 			// Create the game
 			if err := s.bot.ctx.Manager.NewGame(); err != nil {
-				return fmt.Errorf("failed to create game")
+				return fmt.Errorf("failed to create game: %w", err)
 			}
 		}
 	} else if s.bot.ctx.Data.OpenMenus.LoadingScreen {

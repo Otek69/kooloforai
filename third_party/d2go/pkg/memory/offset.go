@@ -1,7 +1,7 @@
 package memory
 
 import (
-	"encoding/binary"
+	"github.com/hectorgimenez/d2go/pkg/memory/scan"
 )
 
 type Offset struct {
@@ -23,114 +23,50 @@ type Offset struct {
 	LegacyGraphics              uintptr
 }
 
+// calculateOffsets resolves every address from the pattern table (patterns.yaml + overrides), falling
+// back to the per-build cache (kooloforai patch: was a fixed list of hard-coded patterns).
 func calculateOffsets(process *Process) Offset {
-	// ignoring errors, always best practices
 	memory, _ := process.getProcessMemory()
+	patMu.Lock()
+	set, cache := patSet, offsetCache
+	patMu.Unlock()
+	build := process.buildKey(memory)
+	res := scan.ResolveAll(memory, set, cache, build)
 
-	// GameReader
-	pattern := process.FindPattern(memory, "\x44\x88\x25\x00\x00\x00\x00\x66\x44\x89\x25\x00\x00\x00\x00", "xxx????xxxx????")
-	bytes := process.ReadBytesFromMemory(pattern+0x3, 4)
-	offsetInt := uintptr(binary.LittleEndian.Uint32(bytes))
-	gameDataOffset := (pattern - process.moduleBaseAddressPtr) - 0x121 + offsetInt
-
-	// UnitTable
-	pattern = process.FindPattern(memory, "\x48\x03\xC7\x49\x8B\x8C\xC6", "xxxxxxx")
-	bytes = process.ReadBytesFromMemory(pattern+7, 4)
-	unitTableOffset := uintptr(binary.LittleEndian.Uint32(bytes))
-
-	// UI
-	pattern = process.FindPattern(memory, "\x40\x84\xed\x0f\x94\x05", "xxxxxx")
-	uiOffset := process.ReadUInt(pattern+6, Uint32)
-	uiOffsetPtr := (pattern - process.moduleBaseAddressPtr) + 10 + uintptr(uiOffset)
-
-	// Hover
-	pattern = process.FindPattern(memory, "\xc6\x84\xc2\x00\x00\x00\x00\x00\x48\x8b\x74", "xxx?????xxx")
-	hoverOffset := process.ReadUInt(pattern+3, Uint32) - 1
-
-	// Expansion
-	pattern = process.FindPattern(memory, "\x48\x8B\x05\x00\x00\x00\x00\x48\x8B\xD9\xF3\x0F\x10\x50\x00", "xxx????xxxxxxx?")
-	offsetPtr := uintptr(process.ReadUInt(pattern+3, Uint32))
-	expOffset := pattern - process.moduleBaseAddressPtr + 7 + offsetPtr
-
-	// Party members offset
-	pattern = process.FindPattern(memory, "\x02\x45\x33\xD2\x4D\x8B", "xxxxxx")
-	offsetPtr = uintptr(process.ReadUInt(pattern-3, Uint32))
-	rosterOffset := pattern - process.moduleBaseAddressPtr + 1 + offsetPtr
-
-	// PanelManagerContainer
-	pattern = process.FindPatternByOperand(memory, "\x48\x89\x05\x00\x00\x00\x00\x48\x85\xDB\x74\x1E", "xxx????xxxxx")
-	bytes = process.ReadBytesFromMemory(pattern, 8)
-	panelManagerContainerOffset := (pattern - process.moduleBaseAddressPtr) // uintptr(binary.LittleEndian.Uint64(bytes))
-
-	// WidgetStates
-	pattern = process.FindPattern(memory, "\x48\x8B\x0D\x00\x00\x00\x00\x4C\x8D\x44\x24\x00\x48\x03\xC2", "xxx????xxxx?xxx")
-	WidgetStatesPtr := process.ReadUInt(pattern+3, Uint32)
-	WidgetStatesOffset := pattern - process.moduleBaseAddressPtr + 7 + uintptr(WidgetStatesPtr)
-
-	// Waypoints
-	pattern = process.FindPattern(memory, "\x48\x89\x05\x00\x00\x00\x00\x0F\x11\x00", "xxx????xxx")
-	offsetBuffer := process.ReadUInt(pattern+3, Uint32)
-	WaypointsOffset := pattern - process.moduleBaseAddressPtr + 23 + uintptr(offsetBuffer)
-
-	// FPS
-	pattern = process.FindPattern(memory, "\x8B\x1D\x00\x00\x00\x00\x48\x8D\x05\x00\x00\x00\x00\x48\x8D\x4C\x24\x40", "xx????xxx????xxxxx")
-	fpsOffsetPtr := uintptr(process.ReadUInt(pattern+2, Uint32))
-	fpsOffset := pattern - process.moduleBaseAddressPtr + 6 + fpsOffsetPtr
-
-	// Keybindings
-	pattern = process.FindPattern(memory, "\x48\x8D\x05\xAF\xEE", "xxxxx")
-	bytes = process.ReadBytesFromMemory(pattern+3, 4)
-	relativeOffset := int32(binary.LittleEndian.Uint32(bytes))
-	keyBindingsOffset := pattern - process.moduleBaseAddressPtr + 7 + uintptr(relativeOffset)
-
-	// KeyBindings Skills
-	pattern = process.FindPattern(memory, "\x0F\x10\x04\x24\x48\x6B\xC8\x1C\x48\x8D\x05", "xxxxxxxxxxx")
-	var keyBindingsSkillsOffset uintptr
-	bytes = process.ReadBytesFromMemory(pattern+11, 4)
-	relativeOffset = int32(binary.LittleEndian.Uint32(bytes))
-	keyBindingsSkillsOffset = uintptr(int64(pattern) + 15 + int64(relativeOffset))
-	if pattern == 0 { // kooloforai patch: 0 = unknown, so DiscoverKeyBindingsSkills can find it
-		keyBindingsSkillsOffset = 0
+	// Restore what self-healing found earlier for this build.
+	if off := cache.Get(build, cacheSelectedName); off > 0 {
+		selectedCharacterNameOffset.Store(uint64(off))
 	}
-
-	// Terror Zones
-	pattern = process.FindPattern(memory, "\x48\x89\x05\xCC\xCC\xCC\xCC\x48\x8D\x05\xCC\xCC\xCC\xCC\x48\x89\x05\xCC\xCC\xCC\xCC\x48\x8D\x05\xCC\xCC\xCC\xCC\x48\x89\x15\xCC\xCC\xCC\xCC\x48\x89\x15", "xxx????xxx????xxx????xxx????xxx????xxx")
-	tzPtr := process.ReadUInt(pattern+3, Uint32)
-	tzOffset := pattern - process.moduleBaseAddressPtr + 7 + uintptr(tzPtr)
-
-	// Quest Bytes Data
-	pattern = process.FindPattern(memory, "\x42\xc6\x84\x28\x00\x00\x00\x00\x00\x49\xff\xc5\x49\x83\xfd\x29", "xxxx?????xxxxxxx")
-	bytes = process.ReadBytesFromMemory(pattern+4, 4)
-	questOffset := uintptr(binary.LittleEndian.Uint32(bytes))
-	questDataOffset := questOffset + 1
-
-	// Ping
-	pattern = process.FindPattern(memory, "\x48\x8B\x0D\xCC\xCC\xCC\xCC\x49\x2B\xC7", "xxx????xxx")
-	bytes = process.ReadBytesFromMemory(pattern+3, 4)
-	relativeOffset = int32(binary.LittleEndian.Uint32(bytes))
-	pingOffset := pattern - process.moduleBaseAddressPtr + 7 + uintptr(relativeOffset)
-
-	// LegacyGraphics
-	pattern = process.FindPattern(memory, "\x80\x3D\x00\x00\x00\x00\x00\x48\x8D\x54\x24\x30", "xx?????xxxxx")
-	legacyGfxPtr := uintptr(process.ReadUInt(pattern+2, Uint32))
-	legacyGfxOffset := pattern - process.moduleBaseAddressPtr + 7 + legacyGfxPtr
-
-	return Offset{
-		GameData:                    gameDataOffset,
-		UnitTable:                   unitTableOffset,
-		UI:                          uiOffsetPtr,
-		Hover:                       uintptr(hoverOffset),
-		Expansion:                   expOffset,
-		RosterOffset:                rosterOffset,
-		PanelManagerContainerOffset: panelManagerContainerOffset,
-		WidgetStatesOffset:          WidgetStatesOffset,
-		WaypointsOffset:             WaypointsOffset,
-		FPS:                         fpsOffset,
-		KeyBindingsOffset:           keyBindingsOffset,
-		KeyBindingsSkillsOffset:     keyBindingsSkillsOffset,
-		TZ:                          tzOffset,
-		Quests:                      questDataOffset,
-		Ping:                        pingOffset,
-		LegacyGraphics:              legacyGfxOffset,
+	if res["KeyBindingsSkills"].Offset == 0 {
+		if off := cache.Get(build, cacheSkillKeys); off > 0 {
+			res["KeyBindingsSkills"] = scan.Result{Offset: off, Source: "cache (search)", Match: -1}
+		}
 	}
+	patMu.Lock()
+	lastResolved, lastBuild = res, build
+	patMu.Unlock()
+
+	off := func(name string) uintptr { return uintptr(res[name].Offset) }
+	o := Offset{
+		GameData:                    off("GameData"),
+		UnitTable:                   off("UnitTable"),
+		UI:                          off("UI"),
+		Hover:                       off("Hover"),
+		Expansion:                   off("Expansion"),
+		RosterOffset:                off("Roster"),
+		PanelManagerContainerOffset: off("PanelManager"),
+		WidgetStatesOffset:          off("WidgetStates"),
+		WaypointsOffset:             off("Waypoints"),
+		FPS:                         off("FPS"),
+		KeyBindingsOffset:           off("KeyBindings"),
+		TZ:                          off("TerrorZones"),
+		Quests:                      off("Quests"),
+		Ping:                        off("Ping"),
+		LegacyGraphics:              off("LegacyGraphics"),
+	}
+	// The skill hotkey table is used as an absolute address; 0 = unknown (self-healing searches for it).
+	if k := off("KeyBindingsSkills"); k != 0 {
+		o.KeyBindingsSkillsOffset = process.moduleBaseAddressPtr + k
+	}
+	return o
 }

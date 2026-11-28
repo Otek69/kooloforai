@@ -34,6 +34,7 @@ cp config/brain.yaml.dist "$PORT/config/brain.yaml"
 cp config/brain.yaml.dist "$PORT/config/"
 cp config/extras.yaml.dist "$PORT/config/extras.yaml"
 cp config/extras.yaml.dist "$PORT/config/"
+cp config/memory-patterns.yaml.dist "$PORT/config/"
 (cd build/portable && zip -qr "../../dist/KooloAI-${VERSION}-portable.zip" KooloAI)
 
 ls -la dist

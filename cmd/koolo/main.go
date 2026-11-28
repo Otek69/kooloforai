@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime/debug"
 
+	"github.com/hectorgimenez/d2go/pkg/memory"
 	sloggger "github.com/hectorgimenez/koolo/cmd/koolo/log"
 	"github.com/hectorgimenez/koolo/internal/bot"
 	"github.com/hectorgimenez/koolo/internal/config"
@@ -45,6 +46,12 @@ func main() {
 		log.Fatalf("Error starting logger: %s", err.Error())
 	}
 	defer sloggger.FlushLog()
+
+	// Flexible memory reader: extra address patterns for new D2R patches, and addresses remembered per D2R build.
+	if err := memory.LoadPatternOverrides("config/memory-patterns.yaml"); err != nil {
+		logger.Error("config/memory-patterns.yaml ignored", slog.Any("error", err))
+	}
+	memory.SetOffsetCachePath("config/memory-cache.json")
 
 	defer func() {
 		if r := recover(); r != nil {

@@ -30,8 +30,14 @@ func TestScoreSkillSlots(t *testing.T) {
 	if s := ScoreSkillSlots(garbage, known); s != -1 {
 		t.Fatalf("garbage scored %d", s)
 	}
-	if s := ScoreSkillSlots(table(54), known); s != 1 { // a skill id we don't have: plausible but weak
+	if s := ScoreSkillSlots(table(54), known); s != -1 { // a skill the player doesn't have
 		t.Fatalf("unknown skill scored %d", s)
+	}
+	if s := ScoreSkillSlots(table(54), nil); s != 1 { // player's skills unknown: plausible but weak
+		t.Fatalf("unknown skill without skill list scored %d", s)
+	}
+	if s := ScoreSkillSlots(table(1, 1, 1, 1), map[uint32]bool{1: true}); s != -1 { // the wrong table from the report
+		t.Fatalf("repeated ids scored %d", s)
 	}
 }
 

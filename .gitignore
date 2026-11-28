@@ -17,5 +17,6 @@
 /diagnostics
 /crash-reports
 !/config/extras.yaml.dist
+!/config/memory-patterns.yaml.dist
 /extras
 /tmpdash

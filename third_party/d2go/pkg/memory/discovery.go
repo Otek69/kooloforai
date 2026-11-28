@@ -32,6 +32,7 @@ func (gd *GameReader) DiscoverSelectedCharacterName(name string) uintptr {
 	for _, h := range scan.StringHits(mem, name, oldSelectedCharacterNameOffset) {
 		if gd.Process.ReadStringFromMemory(gd.moduleBaseAddressPtr+uintptr(h), 0) == name {
 			selectedCharacterNameOffset.Store(uint64(h))
+			gd.Process.cachePut(mem, cacheSelectedName, int64(h))
 			return uintptr(h)
 		}
 	}
@@ -61,6 +62,9 @@ func (gd *GameReader) DiscoverKeyBindingsSkills(playerSkills map[skill.ID]skill.
 		return 0
 	}
 	gd.offset.KeyBindingsSkillsOffset = cands[best]
+	if scores[best] >= 10 { // at least one of the player's own skills is bound there: sure enough to remember
+		gd.Process.cachePut(mem, cacheSkillKeys, int64(cands[best]-gd.moduleBaseAddressPtr))
+	}
 	return cands[best]
 }
 

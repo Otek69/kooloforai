@@ -36,24 +36,35 @@ func SkillTableRefs(mem []byte, base uintptr) []uintptr {
 }
 
 // ScoreSkillSlots rates a candidate skill-hotkey table: -1 = impossible, otherwise higher is more likely.
-// known holds the skill ids the player actually has.
+// known holds the skill ids the player actually has. Strict (kooloforai patch): D2R binds every skill
+// to at most one hotkey, so a repeated id means it is not the table; and when the player's skills are
+// known, every bound id must be one of them.
 func ScoreSkillSlots(blob []byte, known map[uint32]bool) int {
 	if len(blob) < SkillSlots*SkillSlotStride {
 		return -1
 	}
 	score, unassigned := 0, 0
+	seen := map[uint32]bool{}
 	for i := 0; i < SkillSlots; i++ {
 		v := binary.LittleEndian.Uint32(blob[i*SkillSlotStride:])
 		switch {
 		case v == 0xFFFF || v == 0xFFFFFFFF:
 			unassigned++
+			continue
 		case v > 400:
 			return -1 // not a skill id
+		case v == 0:
+			continue
+		case seen[v]:
+			return -1 // same skill on two hotkeys: not the table
 		case known[v]:
 			score += 10
-		case v != 0:
+		case len(known) > 0:
+			return -1 // a skill the player doesn't have
+		default:
 			score++
 		}
+		seen[v] = true
 	}
 	if score == 0 && unassigned == SkillSlots {
 		return 1 // valid but empty (no skills bound yet)

@@ -15,7 +15,7 @@ import (
 type GameReader struct {
 	offsetsAt         time.Time // when offsets were last calculated (kooloforai patch)
 	skillsDiscoveryAt time.Time // last skill-keybinding discovery attempt (kooloforai patch)
-	offset Offset
+	offset            Offset
 	*Process
 
 	monstersLastUpdate  time.Time

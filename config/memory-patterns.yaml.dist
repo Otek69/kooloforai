@@ -1,0 +1,11 @@
+# Extra address patterns for the memory reader (copy to memory-patterns.yaml to use).
+# Variants here are tried BEFORE the built-in ones, so after a D2R patch you (or Claude) can fix an
+# address without rebuilding Koolo. Restart Koolo afterwards. Same format as the built-in table:
+#   kind rip:   address = match + add + int32 at (match + operandAt)    e.g. "48 8B 0D ?? ?? ?? ??"
+#   kind value: address = uint32 at (match + operandAt) + add
+# "koolo-doctor.exe --scan" lists, per address, where it was found and near-matches for missing ones.
+#
+# Example (not active):
+# Ping:
+#   variants:
+#     - {pattern: "48 8B 0D ?? ?? ?? ?? 49 2B C7", kind: rip, operandAt: 3, add: 7}

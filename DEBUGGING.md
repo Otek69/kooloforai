@@ -72,3 +72,19 @@ While Koolo runs, it serves an **MCP server** at `http://localhost:8087/mcp`. It
 - `/improve-koolo leveling speed`: Claude looks at deaths, chickens, errors and the AI's run record, makes one change, and compares the numbers before and after.
 
 Code changes are committed on a branch, so you can review them and undo them with git. Nothing is pushed unless you ask.
+
+## Memory reader: addresses after a D2R patch
+
+Koolo finds the game's data through address patterns. They are no longer hard-coded:
+
+- **Built-in table**: `third_party/d2go/pkg/memory/patterns.yaml` (several variants per address possible).
+- **Your own fixes**: `config/memory-patterns.yaml` (template: `memory-patterns.yaml.dist`). Tried first, no rebuild needed.
+- **Cache per D2R build**: `config/memory-cache.json`. Every address found once is remembered for that exact
+  D2R build (module size + build timestamp), so it keeps working even when D2R locks the code holding the
+  pattern on a later start. The self-healing results (character name, skill hotkey table) are stored there too.
+  A new D2R patch gets a new entry automatically.
+
+`koolo-doctor.exe --scan` shows each address and where it came from (`pattern 1`, `cache`, `missing`).
+`koolo-doctor.exe --reset-cache` clears the cache for the running build if an address turned out wrong.
+Only missing **essential** addresses (GameData, UnitTable, UI, Hover, PanelManager) stop Koolo; the others
+only switch off single features.
