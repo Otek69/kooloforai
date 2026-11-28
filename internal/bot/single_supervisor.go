@@ -104,6 +104,16 @@ func (s *SinglePlayerSupervisor) Start() error {
 			// Perform keybindings check on the first run only
 			if firstRun {
 				missingKeybindings := s.bot.ctx.Char.CheckKeyBindings()
+				// A bound Scroll of Town Portal does the job until a tome is bought (kooloforai patch).
+				if _, ok := s.bot.ctx.Data.KeyBindings.TownPortalKB(); ok {
+					kept := missingKeybindings[:0]
+					for _, sk := range missingKeybindings {
+						if sk != skill.TomeOfTownPortal {
+							kept = append(kept, sk)
+						}
+					}
+					missingKeybindings = kept
+				}
 				if len(missingKeybindings) > 0 {
 					var missingKeybindingsText = "Missing key binding for skill(s):"
 					for _, v := range missingKeybindings {

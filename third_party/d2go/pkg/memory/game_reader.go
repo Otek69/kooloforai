@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hectorgimenez/d2go/pkg/data"
@@ -15,6 +16,10 @@ import (
 type GameReader struct {
 	offsetsAt         time.Time // when offsets were last calculated (kooloforai patch)
 	skillsDiscoveryAt time.Time // last skill-keybinding discovery attempt (kooloforai patch)
+	optionalAt        time.Time // last background search for optional addresses (kooloforai patch)
+	optionalMu        sync.Mutex
+	optionalRunning   bool
+	optionalFound     *Offset
 	offset            Offset
 	*Process
 
@@ -507,7 +512,9 @@ func (gd *GameReader) GetActiveWeaponSlot() int {
 // patch). Its code may only become readable once the game runs it (e.g. after entering a game), and pages
 // read earlier are kept, so every retry gets closer. Throttled to every 5 seconds.
 func (gd *GameReader) refreshMissingOffsets() {
+	gd.applyOptionalOffsets()
 	if gd.offset.UnitTable != 0 && gd.offset.GameData != 0 && gd.offset.UI != 0 && gd.offset.Hover != 0 {
+		gd.searchOptionalOffsets()
 		return
 	}
 	if time.Since(gd.offsetsAt) < 5*time.Second {
@@ -519,4 +526,62 @@ func (gd *GameReader) refreshMissingOffsets() {
 		gd.offset.KeyBindingsSkillsOffset = skills // keep what self-healing found
 	}
 	gd.offsetsAt = time.Now()
+}
+
+// searchOptionalOffsets looks for still-missing optional addresses in the background, at most once a
+// minute, so the bot never waits for it. D2R unlocks code while it runs it, so an address can turn up
+// later in a session; it is then used right away and remembered for this D2R build.
+func (gd *GameReader) searchOptionalOffsets() {
+	o := gd.offset
+	if o.Expansion != 0 && o.RosterOffset != 0 && o.WidgetStatesOffset != 0 && o.TZ != 0 && o.Ping != 0 &&
+		o.KeyBindingsSkillsOffset != 0 && o.PanelManagerContainerOffset != 0 && o.WaypointsOffset != 0 &&
+		o.FPS != 0 && o.KeyBindingsOffset != 0 && o.Quests != 0 && o.LegacyGraphics != 0 {
+		return
+	}
+	gd.optionalMu.Lock()
+	defer gd.optionalMu.Unlock()
+	if gd.optionalRunning || time.Since(gd.optionalAt) < time.Minute {
+		return
+	}
+	gd.optionalRunning, gd.optionalAt = true, time.Now()
+	go func() {
+		defer func() { _ = recover() }() // never take Koolo down for an optional address
+		found := calculateOffsets(gd.Process)
+		gd.optionalMu.Lock()
+		gd.optionalFound, gd.optionalRunning = &found, false
+		gd.optionalMu.Unlock()
+	}()
+}
+
+// applyOptionalOffsets fills addresses that are still 0 with what the background search found.
+func (gd *GameReader) applyOptionalOffsets() {
+	gd.optionalMu.Lock()
+	f := gd.optionalFound
+	gd.optionalFound = nil
+	gd.optionalMu.Unlock()
+	if f == nil {
+		return
+	}
+	fill := func(dst *uintptr, src uintptr) {
+		if *dst == 0 {
+			*dst = src
+		}
+	}
+	o := &gd.offset
+	fill(&o.GameData, f.GameData)
+	fill(&o.UnitTable, f.UnitTable)
+	fill(&o.UI, f.UI)
+	fill(&o.Hover, f.Hover)
+	fill(&o.Expansion, f.Expansion)
+	fill(&o.RosterOffset, f.RosterOffset)
+	fill(&o.PanelManagerContainerOffset, f.PanelManagerContainerOffset)
+	fill(&o.WidgetStatesOffset, f.WidgetStatesOffset)
+	fill(&o.WaypointsOffset, f.WaypointsOffset)
+	fill(&o.FPS, f.FPS)
+	fill(&o.KeyBindingsOffset, f.KeyBindingsOffset)
+	fill(&o.KeyBindingsSkillsOffset, f.KeyBindingsSkillsOffset)
+	fill(&o.TZ, f.TZ)
+	fill(&o.Quests, f.Quests)
+	fill(&o.Ping, f.Ping)
+	fill(&o.LegacyGraphics, f.LegacyGraphics)
 }

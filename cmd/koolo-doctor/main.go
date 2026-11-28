@@ -505,12 +505,22 @@ func selfHealReport(gr *memory.GameReader, skills map[skill.ID]skill.Points) {
 	}
 	kb := gr.GetKeyBindings()
 	var bound []string
-	for _, sb := range kb.Skills {
-		if sb.SkillID != 0 && uint32(sb.SkillID) != 0xFFFF && sb.Key1[0] != 0 {
-			bound = append(bound, fmt.Sprintf("%v", sb.SkillID))
+	for i, sb := range kb.Skills {
+		if sb.SkillID > 0 && sb.Key1[0] != 0 {
+			bound = append(bound, fmt.Sprintf("slot %d: %s (%d)", i+1, skill.SkillNames[sb.SkillID], sb.SkillID))
 		}
 	}
-	line(info, "Skill keys", fmt.Sprintf("bound skill ids: %v", bound))
+	if len(bound) == 0 {
+		bound = []string{"none"}
+	}
+	line(info, "Skill keys", "bound skills: "+strings.Join(bound, ", "))
+	if _, tome := kb.KeyBindingForSkill(skill.TomeOfTownPortal); !tome {
+		if _, scroll := kb.KeyBindingForSkill(skill.ScrollOfTownPortal); scroll {
+			line(ok, "Town portal", "Scroll of Town Portal is bound: Koolo uses it until you have a Tome (then bind the Tome too)")
+		} else {
+			line(warn, "Town portal", "neither Tome nor Scroll of Town Portal is bound to a key")
+		}
+	}
 
 	for _, name := range characterNames() {
 		if gr.GetSelectedCharacterName() == name {

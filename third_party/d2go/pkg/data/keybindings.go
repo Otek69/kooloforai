@@ -77,3 +77,12 @@ func (kb KeyBindings) MustKBForSkill(skillID skill.ID) KeyBinding {
 
 	return k
 }
+
+// TownPortalKB returns the key for opening a town portal: the Tome of Town Portal if it is bound,
+// otherwise the Scroll of Town Portal (kooloforai patch: new characters often only have scrolls).
+func (kb KeyBindings) TownPortalKB() (KeyBinding, bool) {
+	if k, ok := kb.KeyBindingForSkill(skill.TomeOfTownPortal); ok {
+		return k, true
+	}
+	return kb.KeyBindingForSkill(skill.ScrollOfTownPortal)
+}
