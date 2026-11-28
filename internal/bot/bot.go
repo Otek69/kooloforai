@@ -68,6 +68,31 @@ func (b *Bot) Run(ctx context.Context, firstRun bool, runs []run.Run) error {
 		}
 	})
 
+	// kooloforai patch: heartbeat. Every 15 s log what each loop is doing and where the player is, so a
+	// stall ("no movement") shows in the log exactly where it hangs.
+	g.Go(func() error {
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return nil
+			case <-ticker.C:
+				attrs := []any{
+					slog.String("area", b.ctx.Data.PlayerUnit.Area.Area().Name),
+					slog.Int("x", b.ctx.Data.PlayerUnit.Position.X), slog.Int("y", b.ctx.Data.PlayerUnit.Position.Y),
+					slog.Int("priority", int(b.ctx.ExecutionPriority)),
+				}
+				for prio, d := range b.ctx.ContextDebug {
+					if d != nil && (d.LastAction != "" || d.LastStep != "") {
+						attrs = append(attrs, slog.String(fmt.Sprintf("loop%d", prio), d.LastAction+" / "+d.LastStep))
+					}
+				}
+				b.ctx.Logger.Debug("Heartbeat", attrs...)
+			}
+		}
+	})
+
 	// This routine is in charge of handling the health/chicken of the bot, will work in parallel with any other execution
 	g.Go(func() error {
 		b.ctx.AttachRoutine(botCtx.PriorityBackground)
