@@ -40,6 +40,8 @@ type AssistReply struct {
 	Reply     string     `json:"reply"`
 	Proposals []Proposal `json:"proposals"`
 	SpentUSD  float64    `json:"spentUSD"`
+	// QuestionID is set in desktop mode: the answer comes later from Claude Desktop (poll /api/assistant/answer).
+	QuestionID int `json:"questionId,omitempty"`
 }
 
 var ErrDisabled = errors.New("the AI brain is disabled: set enabled: true in config/brain.yaml and add an API key")
@@ -60,6 +62,9 @@ Only propose rules you are confident are valid NIP syntax.`
 func (b *Brain) Assist(ctx context.Context, charName string, cfg *config.CharacterCfg, d *data.Data, history []ChatTurn, question string) (AssistReply, error) {
 	if !b.Enabled() {
 		return AssistReply{}, ErrDisabled
+	}
+	if b.IsDesktop() {
+		return b.askDesktop(charName, question), nil
 	}
 
 	allRuns := make([]string, 0, len(config.AvailableRuns))

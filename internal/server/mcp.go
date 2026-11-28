@@ -30,6 +30,7 @@ import (
 func (s *HttpServer) mcpHandler() http.Handler {
 	srv := mcp.NewServer(&mcp.Implementation{Name: "koolo", Version: config.Version}, &mcp.ServerOptions{
 		Instructions: "Tools for the Koolo AI Diablo II: Resurrected bot running on this PC (offline characters). " +
+			"Owner questions from the AI Assistant page: koolo_owner_questions, answer with koolo_answer_owner. " +
 			"As the bot's brain: read koolo_events (since the last id you saw) and koolo_status, look at koolo_last_failure after deaths, " +
 			"then set the next plan with koolo_brain_plan, save lessons with koolo_add_lesson and talk to viewers with koolo_say. " +
 			"To debug: koolo_doctor and koolo_logs first, then koolo_status / koolo_game_state / koolo_screenshot. " +
@@ -359,6 +360,28 @@ func (s *HttpServer) addBrainTools(srv *mcp.Server) {
 				return nil, nil, err
 			}
 			return textResult("Shown on the overlay."), nil, nil
+		})
+
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_owner_questions", Description: "Questions the owner typed on Koolo's AI Assistant page that wait for your answer (desktop mode). Answer each with koolo_answer_owner, after looking at koolo_status, koolo_logs, koolo_game_state as needed."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, any, error) {
+			qs := brain.PendingQuestions()
+			if len(qs) == 0 {
+				return textResult("No open questions."), nil, nil
+			}
+			return jsonResult(qs), nil, nil
+		})
+
+	type answerIn struct {
+		ID        int              `json:"id" jsonschema:"question id from koolo_owner_questions"`
+		Answer    string           `json:"answer" jsonschema:"your answer in plain text, short paragraphs"`
+		Proposals []brain.Proposal `json:"proposals,omitempty" jsonschema:"optional settings changes the owner can apply with a button: kind pickit_rule (pickitRule), runs (runs), chicken_on_curses (curses) or goal (goal), each with title and why"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{Name: "koolo_answer_owner", Description: "Answer a question from the AI Assistant page; it appears there with Apply buttons for your proposals (nothing changes until the owner presses Apply)."},
+		func(ctx context.Context, _ *mcp.CallToolRequest, in answerIn) (*mcp.CallToolResult, any, error) {
+			if err := brain.Default.AnswerQuestion(in.ID, in.Answer, in.Proposals); err != nil {
+				return nil, nil, err
+			}
+			return textResult("Answer shown on the AI Assistant page."), nil, nil
 		})
 
 	type lessonIn struct {

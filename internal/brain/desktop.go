@@ -6,8 +6,38 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hectorgimenez/koolo/internal/brain/inbox"
 	"github.com/hectorgimenez/koolo/internal/config"
 )
+
+// Questions from the assistant page wait here for Claude Desktop (it reads them via koolo_owner_questions).
+var desktopInbox inbox.Inbox[Proposal]
+
+// askDesktop queues the owner's question for Claude Desktop instead of calling an API.
+func (b *Brain) askDesktop(charName, question string) AssistReply {
+	id := desktopInbox.Ask(charName, question)
+	b.addEvent("question", fmt.Sprintf("Owner asked (question %d, %s): %s", id, charName, question))
+	return AssistReply{
+		QuestionID: id,
+		Reply: "Sent to Claude Desktop (desktop mode makes no API calls). Open Claude Desktop and say: " +
+			"\"answer my Koolo questions\". Its answer appears here.",
+	}
+}
+
+// PendingQuestions returns the owner's unanswered questions (for Claude Desktop).
+func PendingQuestions() []inbox.Question[Proposal] { return desktopInbox.Pending() }
+
+// AnswerQuestion stores Claude Desktop's answer; the assistant page shows it with Apply buttons.
+func (b *Brain) AnswerQuestion(id int, text string, proposals []Proposal) error {
+	if err := desktopInbox.Answer(id, text, proposals); err != nil {
+		return err
+	}
+	b.addEvent("answer", fmt.Sprintf("Claude Desktop answered question %d", id))
+	return nil
+}
+
+// Question returns one question with its answer, if any.
+func Question(id int) (inbox.Question[Proposal], bool) { return desktopInbox.Get(id) }
 
 // Desktop mode (provider: desktop): the Claude Desktop app is the brain. It cannot be called by Koolo; instead it
 // connects to Koolo's MCP server when the user talks to it, reads what happened (events, stats, game state) and

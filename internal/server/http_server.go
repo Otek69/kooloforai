@@ -421,6 +421,7 @@ func (s *HttpServer) Listen(port int) error {
 	http.HandleFunc("/assistant", s.assistantPage)
 	http.HandleFunc("/api/assistant", s.assistantAsk)
 	http.HandleFunc("/api/assistant/apply", s.assistantApply)
+	http.HandleFunc("/api/assistant/answer", s.assistantAnswer)
 	http.HandleFunc("/process-list", s.getProcessList)
 	http.HandleFunc("/attach-process", s.attachProcess)
 	http.HandleFunc("/ws", s.wsServer.HandleWebSocket)    // Web socket

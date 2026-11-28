@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/hectorgimenez/d2go/pkg/data"
@@ -94,6 +95,21 @@ func (s *HttpServer) assistantAsk(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, reply)
+}
+
+// assistantAnswer returns a desktop-mode question with Claude Desktop's answer once it has one.
+func (s *HttpServer) assistantAnswer(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.URL.Query().Get("id"))
+	if err != nil {
+		http.Error(w, "bad id", http.StatusBadRequest)
+		return
+	}
+	q, ok := brain.Question(id)
+	if !ok {
+		http.Error(w, "unknown question", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, q)
 }
 
 type applyRequest struct {

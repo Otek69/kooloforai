@@ -186,13 +186,36 @@ async function ask(text) {
         const reply = JSON.parse(t);
         pending.lastChild.textContent = reply.reply;
         (reply.proposals || []).forEach(p => addCard(pending, p));
-        history.push({role: 'user', text: text}, {role: 'assistant', text: reply.reply});
+        if (reply.questionId) {
+            waitForDesktop(reply.questionId, pending, text);
+        } else {
+            history.push({role: 'user', text: text}, {role: 'assistant', text: reply.reply});
+        }
     } catch (e) {
         pending.lastChild.textContent = 'Error: ' + e.message;
     } finally {
         sendBtn.disabled = false;
         input.focus();
     }
+}
+
+// Desktop mode: Claude Desktop answers when you ask it to; check every 3 s for up to 30 minutes.
+async function waitForDesktop(id, bubble, question) {
+    for (let i = 0; i < 600; i++) {
+        await new Promise(res => setTimeout(res, 3000));
+        try {
+            const r = await fetch('/api/assistant/answer?id=' + id);
+            if (!r.ok) continue;
+            const q = await r.json();
+            if (q.answered) {
+                bubble.lastChild.textContent = q.answer;
+                (q.proposals || []).forEach(p => addCard(bubble, p));
+                history.push({role: 'user', text: question}, {role: 'assistant', text: q.answer});
+                return;
+            }
+        } catch (e) { /* Koolo restarting: keep waiting */ }
+    }
+    bubble.lastChild.textContent += ' (no answer after 30 minutes; ask again when Claude Desktop is open)';
 }
 
 form.addEventListener('submit', e => { e.preventDefault(); ask(input.value); });

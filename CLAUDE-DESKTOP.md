@@ -77,3 +77,11 @@ To make it more automatic, keep the conversation open and write "check" every fe
 | `koolo_say` | Commentary on the stream overlay |
 
 Plus the debugging tools (`koolo_doctor`, `koolo_logs`, and so on); see DEBUGGING.md.
+
+## Asking questions on Koolo's AI Assistant page
+
+In desktop mode, Koolo can't call Claude itself. A question you type on the **AI Assistant** page goes to an inbox
+instead, and the page shows "Sent to Claude Desktop". Then open Claude Desktop and say **"answer my Koolo questions"**.
+Claude reads them with `koolo_owner_questions`, looks at the logs and status, and answers with `koolo_answer_owner`.
+The answer appears on the page within a few seconds, with Apply buttons for suggested changes. Nothing changes until you
+press Apply.
