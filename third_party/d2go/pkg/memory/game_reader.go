@@ -13,7 +13,8 @@ import (
 )
 
 type GameReader struct {
-	offsetsAt time.Time // when offsets were last calculated (kooloforai patch)
+	offsetsAt         time.Time // when offsets were last calculated (kooloforai patch)
+	skillsDiscoveryAt time.Time // last skill-keybinding discovery attempt (kooloforai patch)
 	offset Offset
 	*Process
 
@@ -63,6 +64,7 @@ func (gd *GameReader) GetData() data.Data {
 	rawPlayerUnits := gd.GetRawPlayerUnits()
 	mainPlayerUnit := rawPlayerUnits.GetMainPlayer()
 	pu := gd.GetPlayerUnit(mainPlayerUnit)
+	gd.ensureKeyBindingsSkills(pu.Skills) // kooloforai patch: find the skill hotkeys if the pattern is missing
 	hover := gd.HoveredData()
 
 	now := time.Now()
@@ -316,7 +318,8 @@ func (gd *GameReader) InCharacterSelectionScreen() bool {
 }
 
 func (gd *GameReader) GetSelectedCharacterName() string {
-	return gd.Process.ReadStringFromMemory(gd.Process.moduleBaseAddressPtr+0x21D31A8, 0)
+	// kooloforai patch: the offset can be re-discovered after a D2R patch (DiscoverSelectedCharacterName).
+	return gd.Process.ReadStringFromMemory(gd.Process.moduleBaseAddressPtr+SelectedCharacterNameOffset(), 0)
 }
 
 func (gd *GameReader) LegacyGraphics() bool {

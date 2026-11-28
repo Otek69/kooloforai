@@ -1,0 +1,110 @@
+// Package scan holds the pure (OS-independent, testable) parts of the kooloforai self-healing memory
+// discovery: finding candidate addresses by code shape and scoring candidate data.
+package scan
+
+import (
+	"bytes"
+	"encoding/binary"
+	"sort"
+)
+
+const (
+	SkillSlotStride = 0x1c
+	SkillSlots      = 16
+)
+
+// SkillTableRefs finds every "imul r64,r64,0x1C" directly followed by a RIP-relative "lea r64,[rip+X]"
+// in mem (the module image starting at base) and returns the absolute addresses the leas point to.
+func SkillTableRefs(mem []byte, base uintptr) []uintptr {
+	var out []uintptr
+	seen := map[uintptr]bool{}
+	for i := 0; i+11 <= len(mem); i++ {
+		if mem[i]&0xF0 != 0x40 || mem[i+1] != 0x6B || mem[i+3] != SkillSlotStride {
+			continue
+		}
+		if (mem[i+4] != 0x48 && mem[i+4] != 0x4C) || mem[i+5] != 0x8D || mem[i+6]&0xC7 != 0x05 {
+			continue
+		}
+		rel := int32(binary.LittleEndian.Uint32(mem[i+7 : i+11]))
+		target := uintptr(int64(base) + int64(i) + 11 + int64(rel))
+		if !seen[target] {
+			seen[target] = true
+			out = append(out, target)
+		}
+	}
+	return out
+}
+
+// ScoreSkillSlots rates a candidate skill-hotkey table: -1 = impossible, otherwise higher is more likely.
+// known holds the skill ids the player actually has.
+func ScoreSkillSlots(blob []byte, known map[uint32]bool) int {
+	if len(blob) < SkillSlots*SkillSlotStride {
+		return -1
+	}
+	score, unassigned := 0, 0
+	for i := 0; i < SkillSlots; i++ {
+		v := binary.LittleEndian.Uint32(blob[i*SkillSlotStride:])
+		switch {
+		case v == 0xFFFF || v == 0xFFFFFFFF:
+			unassigned++
+		case v > 400:
+			return -1 // not a skill id
+		case known[v]:
+			score += 10
+		case v != 0:
+			score++
+		}
+	}
+	if score == 0 && unassigned == SkillSlots {
+		return 1 // valid but empty (no skills bound yet)
+	}
+	return score
+}
+
+// Best returns the index of the highest score > 0, or -1 if there is none or the best is only an
+// empty table that appears more than once (can't tell which one is real).
+func Best(scores []int) int {
+	best, bestScore, ties := -1, 0, 0
+	for i, s := range scores {
+		switch {
+		case s > bestScore:
+			best, bestScore, ties = i, s, 0
+		case s == bestScore && s > 0:
+			ties++
+		}
+	}
+	if best < 0 || (ties > 0 && bestScore <= 1) {
+		return -1
+	}
+	return best
+}
+
+// StringHits returns offsets in mem where name occurs as a whole zero-terminated string,
+// ordered by distance to near (the old known offset).
+func StringHits(mem []byte, name string, near int) []int {
+	if name == "" {
+		return nil
+	}
+	needle := append([]byte(name), 0)
+	var hits []int
+	for i := 0; i < len(mem) && len(hits) <= 64; {
+		j := bytes.Index(mem[i:], needle)
+		if j < 0 {
+			break
+		}
+		at := i + j
+		if at == 0 || mem[at-1] == 0 {
+			hits = append(hits, at)
+		}
+		i = at + 1
+	}
+	sort.Slice(hits, func(a, b int) bool { return abs(hits[a]-near) < abs(hits[b]-near) })
+	return hits
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
+}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go/v2"
 	"github.com/anthropics/anthropic-sdk-go/v2/option"
+	"github.com/hectorgimenez/d2go/pkg/data/skill"
 	"github.com/hectorgimenez/d2go/pkg/data/stat"
 	"github.com/hectorgimenez/d2go/pkg/memory"
 	"github.com/hectorgimenez/d2go/pkg/nip"
@@ -409,6 +410,9 @@ func checkGame() {
 	}
 	d := gr.GetData()
 	pu := d.PlayerUnit
+	if hasArg("--scan") {
+		selfHealReport(gr, pu.Skills)
+	}
 	lvl, _ := pu.FindStat(stat.Level, 0)
 	life, _ := pu.FindStat(stat.Life, 0)
 	maxLife, _ := pu.FindStat(stat.MaxLife, 0)
@@ -457,6 +461,57 @@ func checkWindow(pid uint32) {
 	} else {
 		line(warn, "Window", fmt.Sprintf("%dx%d: Koolo expects windowed 1280x720 (or 1920x1080 in HiDPI mode)", w, h))
 	}
+}
+
+// selfHealReport tries the self-healing discoveries Koolo uses when patterns are missing.
+func selfHealReport(gr *memory.GameReader, skills map[skill.ID]skill.Points) {
+	if gr.KeyBindingsSkillsOffset() == 0 {
+		if addr := gr.DiscoverKeyBindingsSkills(skills); addr != 0 {
+			line(ok, "Skill keys", fmt.Sprintf("skill hotkey table found by search at 0x%X", addr))
+		} else {
+			line(warn, "Skill keys", "skill hotkey table not found yet. Bind at least one skill to a key (e.g. F1) in D2R, then scan again")
+		}
+	} else {
+		line(ok, "Skill keys", "skill hotkey table found by pattern")
+	}
+	kb := gr.GetKeyBindings()
+	var bound []string
+	for _, sb := range kb.Skills {
+		if sb.SkillID != 0 && uint32(sb.SkillID) != 0xFFFF && sb.Key1[0] != 0 {
+			bound = append(bound, fmt.Sprintf("%v", sb.SkillID))
+		}
+	}
+	line(info, "Skill keys", fmt.Sprintf("bound skill ids: %v", bound))
+
+	for _, name := range characterNames() {
+		if gr.GetSelectedCharacterName() == name {
+			line(ok, "Char name", "selected character name readable: "+name)
+			return
+		}
+		if off := gr.DiscoverSelectedCharacterName(name); off != 0 {
+			line(ok, "Char name", fmt.Sprintf("character name %q found at +0x%X (Koolo finds it the same way)", name, off))
+			return
+		}
+	}
+	line(warn, "Char name", "selected character name not found. Koolo will then play whichever character is selected")
+}
+
+func characterNames() []string {
+	var names []string
+	dirs, _ := os.ReadDir("config")
+	for _, d := range dirs {
+		raw, err := os.ReadFile(filepath.Join("config", d.Name(), "config.yaml"))
+		if err != nil {
+			continue
+		}
+		var c struct {
+			CharacterName string `yaml:"characterName"`
+		}
+		if yaml.Unmarshal(raw, &c) == nil && c.CharacterName != "" {
+			names = append(names, c.CharacterName)
+		}
+	}
+	return names
 }
 
 // deepScan prints near-matches for missing patterns and the module's unreadable regions, to help update

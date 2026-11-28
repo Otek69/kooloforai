@@ -89,6 +89,9 @@ func calculateOffsets(process *Process) Offset {
 	bytes = process.ReadBytesFromMemory(pattern+11, 4)
 	relativeOffset = int32(binary.LittleEndian.Uint32(bytes))
 	keyBindingsSkillsOffset = uintptr(int64(pattern) + 15 + int64(relativeOffset))
+	if pattern == 0 { // kooloforai patch: 0 = unknown, so DiscoverKeyBindingsSkills can find it
+		keyBindingsSkillsOffset = 0
+	}
 
 	// Terror Zones
 	pattern = process.FindPattern(memory, "\x48\x89\x05\xCC\xCC\xCC\xCC\x48\x8D\x05\xCC\xCC\xCC\xCC\x48\x89\x05\xCC\xCC\xCC\xCC\x48\x8D\x05\xCC\xCC\xCC\xCC\x48\x89\x15\xCC\xCC\xCC\xCC\x48\x89\x15", "xxx????xxx????xxx????xxx????xxx????xxx")

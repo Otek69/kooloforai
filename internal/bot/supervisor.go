@@ -130,6 +130,17 @@ func (s *baseSupervisor) waitUntilCharacterSelectionScreen() error {
 	if s.bot.ctx.CharacterCfg.CharacterName != "" {
 		s.bot.ctx.Logger.Info("Selecting character...")
 		previousSelection := ""
+		// kooloforai patch: after a D2R patch the address of the selected character's name can move.
+		// If it reads empty, search for the configured name; if that fails too, use the current selection.
+		if s.bot.ctx.GameReader.GameReader.GetSelectedCharacterName() == "" {
+			want := s.bot.ctx.CharacterCfg.CharacterName
+			if off := s.bot.ctx.GameReader.GameReader.DiscoverSelectedCharacterName(want); off != 0 {
+				s.bot.ctx.Logger.Info(fmt.Sprintf("Found the selected character name at a new address (+0x%X) after a D2R update", off))
+			} else {
+				s.bot.ctx.Logger.Warn("Can't read the selected character's name in this D2R version; playing the character that is currently selected. Make sure it is " + want)
+				return nil
+			}
+		}
 		for {
 			characterName := s.bot.ctx.GameReader.GameReader.GetSelectedCharacterName()
 			if strings.EqualFold(previousSelection, characterName) {

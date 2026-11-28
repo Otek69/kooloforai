@@ -43,7 +43,7 @@ func NewProcess() (*Process, error) {
 		return nil, err
 	}
 
-	h, err := windows.OpenProcess(0x0010, false, module.ProcessID)
+	h, err := windows.OpenProcess(0x0010|0x0400, false /* VM_READ + QUERY_INFORMATION (kooloforai patch) */, module.ProcessID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewProcessForPID(pid uint32) (*Process, error) {
 		return nil, errors.New("no module found for the specified PID")
 	}
 
-	h, err := windows.OpenProcess(0x0010, false, module.ProcessID)
+	h, err := windows.OpenProcess(0x0010|0x0400, false /* VM_READ + QUERY_INFORMATION (kooloforai patch) */, module.ProcessID)
 	if err != nil {
 		return nil, err
 	}
