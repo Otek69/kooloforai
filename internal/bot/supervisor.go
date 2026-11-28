@@ -63,7 +63,14 @@ func (s *baseSupervisor) TogglePause() {
 	} else {
 		s.bot.ctx.SwitchPriority(ct.PriorityPause)
 		s.bot.ctx.MemoryInjector.RestoreMemory()
-		s.bot.ctx.Logger.Info("Pausing...", slog.String("configuration", s.name))
+		// kooloforai patch: say what the bot was doing, so a pause after a hang shows where it hung.
+		attrs := []any{slog.String("configuration", s.name)}
+		for prio, d := range s.bot.ctx.ContextDebug {
+			if d != nil && (d.LastAction != "" || d.LastStep != "") {
+				attrs = append(attrs, slog.String(fmt.Sprintf("priority%d", prio), d.LastAction+" / "+d.LastStep))
+			}
+		}
+		s.bot.ctx.Logger.Info("Pausing...", attrs...)
 		event.Send(event.GamePaused(event.Text(s.name, "Game paused"), true))
 	}
 }

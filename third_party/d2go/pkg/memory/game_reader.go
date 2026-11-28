@@ -19,6 +19,7 @@ type GameReader struct {
 	optionalAt        time.Time // last background search for optional addresses (kooloforai patch)
 	optionalMu        sync.Mutex
 	optionalRunning   bool
+	optionalTries     int
 	optionalFound     *Offset
 	offset            Offset
 	*Process
@@ -540,13 +541,22 @@ func (gd *GameReader) searchOptionalOffsets() {
 	}
 	gd.optionalMu.Lock()
 	defer gd.optionalMu.Unlock()
-	if gd.optionalRunning || time.Since(gd.optionalAt) < time.Minute {
+	every := time.Minute
+	if gd.optionalTries >= 5 { // some addresses never show up offline (e.g. ping): don't burn CPU on them
+		every = 10 * time.Minute
+	}
+	if gd.optionalRunning || time.Since(gd.optionalAt) < every {
 		return
 	}
 	gd.optionalRunning, gd.optionalAt = true, time.Now()
+	gd.optionalTries++
 	go func() {
 		defer func() { _ = recover() }() // never take Koolo down for an optional address
 		found := calculateOffsets(gd.Process)
+		// Still missing: verified search on near-matches, checked against the live game.
+		probe := &GameReader{offset: found, Process: gd.Process}
+		probe.DeepFindOffsets()
+		found = probe.offset
 		gd.optionalMu.Lock()
 		gd.optionalFound, gd.optionalRunning = &found, false
 		gd.optionalMu.Unlock()

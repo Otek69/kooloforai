@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/hectorgimenez/d2go/pkg/data"
@@ -202,7 +203,11 @@ func (b *Bot) Run(ctx context.Context, firstRun bool, runs []run.Run) error {
 				return nil
 			default:
 				event.Send(event.RunStarted(event.Text(b.ctx.Name, fmt.Sprintf("Starting run: %s", r.Name())), r.Name()))
+				b.ctx.Logger.Info("Town routine before run", slog.String("run", r.Name()))
 				err = action.PreRun(firstRun)
+				if err == nil {
+					b.ctx.Logger.Info("Starting run", slog.String("run", r.Name()))
+				}
 				if err != nil {
 					return err
 				}

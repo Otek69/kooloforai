@@ -438,6 +438,13 @@ func checkGame() {
 	pu := d.PlayerUnit
 	if hasArg("--scan") {
 		selfHealReport(gr, pu.Skills)
+		for _, f := range gr.DeepFindOffsets() {
+			if f.Offset != 0 {
+				line(ok, f.Name, fmt.Sprintf("found by verified search at +0x%X (%d near-match(es) agree, checked against the game); remembered for this D2R build", f.Offset, f.Votes))
+			} else {
+				line(warn, f.Name, "verified search: "+f.Note)
+			}
+		}
 	}
 	lvl, _ := pu.FindStat(stat.Level, 0)
 	life, _ := pu.FindStat(stat.Life, 0)

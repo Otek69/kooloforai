@@ -48,6 +48,11 @@ func (p *Process) DiagnosePatterns() ([]PatternCheck, error) {
 	cache := offsetCache
 	patMu.Unlock()
 	res := scan.ResolveAll(memory, set, cache, p.buildKey(memory))
+	if res["KeyBindingsSkills"].Offset == 0 {
+		if off := cache.Get(p.buildKey(memory), cacheSkillKeys); off > 0 {
+			res["KeyBindingsSkills"] = scan.Result{Offset: off, Source: "cache (search)", Match: -1}
+		}
+	}
 	out := make([]PatternCheck, 0, len(res))
 	for _, n := range set.Names() {
 		r := res[n]

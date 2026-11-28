@@ -84,21 +84,28 @@ func Resolve(mem []byte, v Variant) (offset int64, match int, ok bool) {
 	if match < 0 {
 		return 0, -1, false
 	}
+	offset, ok = OffsetAt(mem, v, match)
+	return offset, match, ok
+}
+
+// OffsetAt computes the variant's offset for a match at the given position.
+func OffsetAt(mem []byte, v Variant, match int) (int64, bool) {
 	at := match + v.OperandAt
 	if at < 0 || at+4 > len(mem) {
-		return 0, match, false
+		return 0, false
 	}
 	op := binary.LittleEndian.Uint32(mem[at : at+4])
+	var offset int64
 	switch v.Kind {
 	case "", "rip":
 		offset = int64(match) + v.Add + int64(int32(op))
 	case "value":
 		offset = int64(op) + v.Add
 	default:
-		return 0, match, false
+		return 0, false
 	}
 	if offset <= 0 {
-		return 0, match, false
+		return 0, false
 	}
-	return offset, match, true
+	return offset, true
 }
