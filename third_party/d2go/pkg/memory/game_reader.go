@@ -55,10 +55,7 @@ func NewGameReader(process *Process) *GameReader {
 func (gd *GameReader) GetData() data.Data {
 	// kooloforai patch: recalculating scans the whole module several times (seconds), so only retry
 	// every 30 seconds while an essential offset is still missing.
-	if gd.offset.UnitTable == 0 && time.Since(gd.offsetsAt) > 30*time.Second {
-		gd.offset = calculateOffsets(gd.Process)
-		gd.offsetsAt = time.Now()
-	}
+	gd.refreshMissingOffsets()
 
 	// Always refresh core player data
 	rawPlayerUnits := gd.GetRawPlayerUnits()
@@ -154,6 +151,7 @@ func (gd *GameReader) GetInventory() data.Inventory {
 }
 
 func (gd *GameReader) InGame() bool {
+	gd.refreshMissingOffsets()
 	player := gd.GetRawPlayerUnits().GetMainPlayer()
 
 	return player.UnitID > 0 && player.Position.X > 0 && player.Position.Y > 0 && player.Area > 0
@@ -503,4 +501,22 @@ func (gd *GameReader) GetActiveWeaponSlot() int {
 		return 0 // Default to primary weapons on error
 	}
 	return state
+}
+
+// refreshMissingOffsets recalculates the addresses while an essential one is still missing (kooloforai
+// patch). Its code may only become readable once the game runs it (e.g. after entering a game), and pages
+// read earlier are kept, so every retry gets closer. Throttled to every 5 seconds.
+func (gd *GameReader) refreshMissingOffsets() {
+	if gd.offset.UnitTable != 0 && gd.offset.GameData != 0 && gd.offset.UI != 0 && gd.offset.Hover != 0 {
+		return
+	}
+	if time.Since(gd.offsetsAt) < 5*time.Second {
+		return
+	}
+	skills := gd.offset.KeyBindingsSkillsOffset
+	gd.offset = calculateOffsets(gd.Process)
+	if gd.offset.KeyBindingsSkillsOffset == 0 {
+		gd.offset.KeyBindingsSkillsOffset = skills // keep what self-healing found
+	}
+	gd.offsetsAt = time.Now()
 }

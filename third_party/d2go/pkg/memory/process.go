@@ -1,6 +1,8 @@
 package memory
 
 import (
+	"github.com/hectorgimenez/d2go/pkg/memory/scan"
+
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -26,6 +28,8 @@ type Process struct {
 	unreadablePages int
 	totalPages      int
 	passes          int
+	pageUnion       scan.PageUnion // every page ever read, across scans (kooloforai patch)
+	unionMu         sync.Mutex
 	// MaxReadPasses limits the retry passes over unreadable pages (default 40, about 6 seconds).
 	MaxReadPasses int
 }
@@ -172,8 +176,12 @@ func (p *Process) getProcessMemory() ([]byte, error) {
 		}
 		p.passes = pass
 	}
-	p.unreadablePages, p.totalPages = best, pages
-	if best == pages {
+	// Pages locked now but read in an earlier scan are filled in from the union.
+	p.unionMu.Lock()
+	unknown := p.pageUnion.Merge(data, done)
+	p.unionMu.Unlock()
+	p.unreadablePages, p.totalPages = unknown, pages
+	if best == pages && unknown == pages {
 		return data, errors.New("no page of the game module could be read (missing administrator rights?)")
 	}
 	return data, nil

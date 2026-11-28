@@ -406,7 +406,7 @@ func checkGame() {
 	case len(missing) == 0:
 		line(ok, "Patterns", fmt.Sprintf("all %d addresses found in this D2R build", len(checks)))
 	case len(missingEssential) > 0:
-		line(fail, "Patterns", fmt.Sprintf("essential addresses missing: %s (also missing: %s). This D2R patch is newer than the memory reader: add a pattern to config/memory-patterns.yaml or update d2go",
+		line(fail, "Patterns", fmt.Sprintf("essential addresses missing: %s (also missing: %s). If you ran this at the character screen, enter a game and run it again first: D2R only unlocks some of its code while it runs it, and once found, an address is remembered for this D2R build. Still missing in a game: the memory reader needs a new pattern (config/memory-patterns.yaml)",
 			strings.Join(missingEssential, ", "), strings.Join(missing, ", ")))
 	default:
 		line(warn, "Patterns", "optional addresses missing: "+strings.Join(missing, ", ")+". Koolo can play; only the features using them are off (they may still be found on a later start, and are then remembered)")
