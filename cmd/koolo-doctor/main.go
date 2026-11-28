@@ -447,6 +447,7 @@ func checkGame() {
 		len(d.Monsters), len(d.Inventory.AllItems)))
 
 	sane := pu.Name != "" && lvl.Value >= 1 && lvl.Value <= 99 && maxLife.Value > 0 && pu.Area.Area().Name != ""
+	checkDifficulty(pu.Name, lvl.Value)
 	if sane {
 		line(ok, "Memory", "game data looks correct: Koolo can read this D2R version")
 	} else {
@@ -751,4 +752,36 @@ func shorten(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+// checkDifficulty warns when a leveling character is set to a difficulty it can't have unlocked yet.
+func checkDifficulty(name string, level int) {
+	dirs, _ := os.ReadDir("config")
+	for _, d := range dirs {
+		raw, err := os.ReadFile(filepath.Join("config", d.Name(), "config.yaml"))
+		if err != nil {
+			continue
+		}
+		var c struct {
+			CharacterName string `yaml:"characterName"`
+			Game          struct {
+				Difficulty string   `yaml:"difficulty"`
+				Runs       []string `yaml:"runs"`
+			} `yaml:"game"`
+		}
+		if yaml.Unmarshal(raw, &c) != nil || !strings.EqualFold(c.CharacterName, name) {
+			continue
+		}
+		leveling := false
+		for _, r := range c.Game.Runs {
+			leveling = leveling || strings.HasPrefix(r, "leveling")
+		}
+		diff := strings.ToLower(c.Game.Difficulty)
+		if leveling && ((diff == "hell" && level < 40) || (diff == "nightmare" && level < 20)) {
+			line(fail, "Difficulty", fmt.Sprintf("%s is level %d but set to %s: Koolo then clicks the wrong difficulty and loads the wrong maps. "+
+				"Set Difficulty to Normal in %s's settings (leveling switches difficulty by itself after Baal)", name, level, c.Game.Difficulty, name))
+		} else if c.Game.Difficulty != "" {
+			line(ok, "Difficulty", fmt.Sprintf("%s: %s", name, c.Game.Difficulty))
+		}
+	}
 }

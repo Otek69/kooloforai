@@ -7,9 +7,12 @@ import (
 	"github.com/hectorgimenez/koolo/internal/brain"
 	"log/slog"
 	"math/rand"
+	"strings"
 	"time"
 
+	"github.com/hectorgimenez/d2go/pkg/data/difficulty"
 	"github.com/hectorgimenez/d2go/pkg/data/skill"
+	"github.com/hectorgimenez/d2go/pkg/data/stat"
 	"github.com/hectorgimenez/koolo/internal/config"
 	ct "github.com/hectorgimenez/koolo/internal/context"
 	"github.com/hectorgimenez/koolo/internal/event"
@@ -103,6 +106,12 @@ func (s *SinglePlayerSupervisor) Start() error {
 
 			// Perform keybindings check on the first run only
 			if firstRun {
+				// kooloforai patch: a level-1 leveling character set to Nightmare/Hell gets the wrong maps and buttons.
+				if lvl, ok := s.bot.ctx.Data.PlayerUnit.FindStat(stat.Level, 0); ok {
+					if msg := difficultyMismatch(s.bot.ctx.CharacterCfg, lvl.Value); msg != "" {
+						s.bot.ctx.Logger.Warn(msg)
+					}
+				}
 				missingKeybindings := s.bot.ctx.Char.CheckKeyBindings()
 				// A bound Scroll of Town Portal does the job until a tome is bought (kooloforai patch).
 				if _, ok := s.bot.ctx.Data.KeyBindings.TownPortalKB(); ok {
@@ -121,6 +130,8 @@ func (s *SinglePlayerSupervisor) Start() error {
 					}
 					missingKeybindingsText += "\nPlease bind the skills. Pausing bot..."
 
+					s.bot.ctx.Logger.Warn("Bot paused: missing key binding(s). Bind them in D2R, then press Resume",
+						slog.String("missing", strings.ReplaceAll(strings.TrimPrefix(missingKeybindingsText, "Missing key binding for skill(s):\n"), "\n", ", ")))
 					utils.ShowDialog("Missing keybindings for "+s.bot.ctx.Name, missingKeybindingsText)
 					s.TogglePause()
 				}
@@ -306,4 +317,24 @@ func (s *SinglePlayerSupervisor) HandleOutOfGameFlow() error {
 	// TODO: Maybe expand this with functionality to create new characters if the currently configured char isn't found? :)
 
 	return nil
+}
+
+// difficultyMismatch warns when a leveling character's difficulty can't be unlocked yet at its level
+// (Nightmare needs Baal in Normal, Hell needs Baal in Nightmare). Koolo uses this setting for the
+// create-game button and for the maps, so a wrong one breaks pathing.
+func difficultyMismatch(cfg *config.CharacterCfg, level int) string {
+	leveling := false
+	for _, r := range cfg.Game.Runs {
+		if strings.HasPrefix(string(r), "leveling") {
+			leveling = true
+		}
+	}
+	if !leveling {
+		return ""
+	}
+	switch {
+	case cfg.Game.Difficulty == difficulty.Hell && level < 40, cfg.Game.Difficulty == difficulty.Nightmare && level < 20:
+		return fmt.Sprintf("Difficulty is set to %s but the character is level %d: set Difficulty to normal in the character settings (leveling switches difficulty itself after Baal)", cfg.Game.Difficulty, level)
+	}
+	return ""
 }
