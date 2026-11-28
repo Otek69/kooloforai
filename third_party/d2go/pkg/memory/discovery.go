@@ -46,26 +46,48 @@ func (gd *GameReader) DiscoverKeyBindingsSkills(playerSkills map[skill.ID]skill.
 	if err != nil {
 		return 0
 	}
-	known := map[uint32]bool{}
-	for id, pts := range playerSkills {
-		if pts.Level > 0 {
-			known[uint32(id)] = true
-		}
+	// Every skill the player has (learned or from items), plus the tome/scroll skills that can always be bound.
+	known := map[uint32]bool{
+		uint32(skill.TomeOfTownPortal): true, uint32(skill.ScrollOfTownPortal): true,
+		uint32(skill.TomeOfIdentify): true, uint32(skill.ScrollOfIdentify): true,
 	}
+	for id := range playerSkills {
+		known[uint32(id)] = true
+	}
+	use := func(addr uintptr, score int) uintptr {
+		gd.offset.KeyBindingsSkillsOffset = addr
+		if score >= 10 { // at least one of the player's skills is bound there: sure enough to remember
+			gd.Process.cachePut(mem, cacheSkillKeys, int64(addr-gd.moduleBaseAddressPtr))
+		}
+		return addr
+	}
+	// 1. Through the code that references the table.
 	cands := scan.SkillTableRefs(mem, gd.moduleBaseAddressPtr)
 	scores := make([]int, len(cands))
 	for i, c := range cands {
 		scores[i] = scan.ScoreSkillSlots(gd.ReadBytesFromMemory(c, scan.SkillSlots*scan.SkillSlotStride), known)
 	}
-	best := scan.Best(scores)
-	if best < 0 {
+	if best := scan.Best(scores); best >= 0 {
+		return use(cands[best], scores[best])
+	}
+	// 2. That code is locked: search the data for the table itself (needs at least one skill bound).
+	offs, score := scan.SkillTablesByContent(mem, known)
+	if len(offs) == 0 {
 		return 0
 	}
-	gd.offset.KeyBindingsSkillsOffset = cands[best]
-	if scores[best] >= 10 { // at least one of the player's own skills is bound there: sure enough to remember
-		gd.Process.cachePut(mem, cacheSkillKeys, int64(cands[best]-gd.moduleBaseAddressPtr))
+	// Copies: take the one closest to the other key bindings, verified live.
+	kb := int(gd.offset.KeyBindingsOffset)
+	bestOff := offs[0]
+	for _, o := range offs[1:] {
+		if abs(o-kb) < abs(bestOff-kb) {
+			bestOff = o
+		}
 	}
-	return cands[best]
+	addr := gd.moduleBaseAddressPtr + uintptr(bestOff)
+	if scan.ScoreSkillSlots(gd.ReadBytesFromMemory(addr, scan.SkillSlots*scan.SkillSlotStride), known) < 10 {
+		return 0
+	}
+	return use(addr, score)
 }
 
 // KeyBindingsSkillsOffset returns the absolute address used for skill hotkeys (0 = unknown).
@@ -78,4 +100,11 @@ func (gd *GameReader) ensureKeyBindingsSkills(playerSkills map[skill.ID]skill.Po
 	}
 	gd.skillsDiscoveryAt = time.Now()
 	gd.DiscoverKeyBindingsSkills(playerSkills)
+}
+
+func abs(x int) int {
+	if x < 0 {
+		return -x
+	}
+	return x
 }

@@ -119,3 +119,26 @@ func abs(x int) int {
 	}
 	return x
 }
+
+// SkillTablesByContent searches the module's data directly for the skill hotkey table (kooloforai patch),
+// for when the code that references it is locked: every 4-byte aligned spot is scored like a table, and
+// only spots with at least one of the player's skills bound (score >= 10) count. Returns the offsets with
+// the highest score (several if the game keeps copies).
+func SkillTablesByContent(mem []byte, known map[uint32]bool) (offsets []int, score int) {
+	n := SkillSlots * SkillSlotStride
+	for i := 0; i+n <= len(mem); i += 4 {
+		v := binary.LittleEndian.Uint32(mem[i:])
+		if v != 0xFFFF && v != 0xFFFFFFFF && !known[v] { // fast reject: first slot must be plausible
+			continue
+		}
+		s := ScoreSkillSlots(mem[i:i+n], known)
+		switch {
+		case s < 10 || s < score:
+		case s > score:
+			offsets, score = []int{i}, s
+		default:
+			offsets = append(offsets, i)
+		}
+	}
+	return offsets, score
+}

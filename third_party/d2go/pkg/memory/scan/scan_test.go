@@ -77,3 +77,21 @@ func TestStringHits(t *testing.T) {
 		t.Fatalf("hits %v (the tail of xSorcaa must not count)", hits)
 	}
 }
+
+func TestSkillTablesByContent(t *testing.T) {
+	known := map[uint32]bool{36: true, 220: true} // fire bolt, tome of town portal
+	mem := make([]byte, 0x400)
+	for i := range mem {
+		mem[i] = 0x11
+	}
+	tbl := table(0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 220) // only F8 bound
+	copy(mem[0x100:], tbl)
+	offs, score := SkillTablesByContent(mem, known)
+	if len(offs) != 1 || offs[0] != 0x100 || score != 10 {
+		t.Fatalf("offsets %#x score %d", offs, score)
+	}
+	// nothing bound anywhere: no guess
+	if offs, _ := SkillTablesByContent(make([]byte, 0x400), known); len(offs) != 0 {
+		t.Fatalf("guessed %#x", offs)
+	}
+}
